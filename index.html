@@ -1047,7 +1047,7 @@
         }
       }catch(e){console.warn('Remember Me unavailable',e);}
 
-      if (typeof google !== 'undefined' && google.script && TaiciBridge.run) {
+      if (window.TaiciBridge && window.TaiciBridge.run) {
         TaiciBridge.run
           .withSuccessHandler(res => {
             if (res && res.success) {
@@ -1063,6 +1063,8 @@
             Swal.fire('Gagal Login', (err && err.message) || 'Terjadi kesalahan saat menghubungkan ke server.', 'error');
           })
           .authenticateUser(u, p, remember);
+      } else {
+        Swal.fire('Bridge Tidak Tersedia', 'Koneksi ke layanan Apps Script belum siap. Muat ulang aplikasi lalu coba lagi.', 'error');
       }
     }
 
