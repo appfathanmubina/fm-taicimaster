@@ -1,1 +1,55 @@
-J3VzZSBzdHJpY3QnOwoKY29uc3QgQ0FDSEVfTkFNRSA9ICd0YWljaW1hc3Rlci1zaGVsbC12MSc7CmNvbnN0IEFQUF9TSEVMTCA9IFsKICAnLi8nLAogICcuL2luZGV4Lmh0bWwnLAogICcuL2NvbmZpZy5qcycsCiAgJy4vYnJpZGdlLWNsaWVudC5qcycsCiAgJy4vbWFuaWZlc3Qud2VibWFuaWZlc3QnLAogICcuL2Fzc2V0cy9pY29uLTE5Mi5wbmcnLAogICcuL2Fzc2V0cy9pY29uLTUxMi5wbmcnCl07CgpzZWxmLmFkZEV2ZW50TGlzdGVuZXIoJ2luc3RhbGwnLCBldmVudCA9PiB7CiAgZXZlbnQud2FpdFVudGlsKAogICAgY2FjaGVzLm9wZW4oQ0FDSEVfTkFNRSkKICAgICAgLnRoZW4oY2FjaGUgPT4gY2FjaGUuYWRkQWxsKEFQUF9TSEVMTCkpCiAgICAgIC50aGVuKCgpID0+IHNlbGYuc2tpcFdhaXRpbmcoKSkKICApOwp9KTsKCnNlbGYuYWRkRXZlbnRMaXN0ZW5lcignYWN0aXZhdGUnLCBldmVudCA9PiB7CiAgZXZlbnQud2FpdFVudGlsKAogICAgY2FjaGVzLmtleXMoKQogICAgICAudGhlbihrZXlzID0+IFByb21pc2UuYWxsKGtleXMKICAgICAgICAuZmlsdGVyKGtleSA9PiBrZXkuc3RhcnRzV2l0aCgndGFpY2ltYXN0ZXItc2hlbGwtJykgJiYga2V5ICE9PSBDQUNIRV9OQU1FKQogICAgICAgIC5tYXAoa2V5ID0+IGNhY2hlcy5kZWxldGUoa2V5KSkpKQogICAgICAudGhlbigoKSA9PiBzZWxmLmNsaWVudHMuY2xhaW0oKSkKICApOwp9KTsKCnNlbGYuYWRkRXZlbnRMaXN0ZW5lcignZmV0Y2gnLCBldmVudCA9PiB7CiAgY29uc3QgcmVxdWVzdCA9IGV2ZW50LnJlcXVlc3Q7CiAgaWYgKHJlcXVlc3QubWV0aG9kICE9PSAnR0VUJykgcmV0dXJuOwoKICBjb25zdCB1cmwgPSBuZXcgVVJMKHJlcXVlc3QudXJsKTsKICBpZiAodXJsLm9yaWdpbiAhPT0gc2VsZi5sb2NhdGlvbi5vcmlnaW4pIHJldHVybjsKCiAgaWYgKHJlcXVlc3QubW9kZSA9PT0gJ25hdmlnYXRlJykgewogICAgZXZlbnQucmVzcG9uZFdpdGgoCiAgICAgIGZldGNoKHJlcXVlc3QpCiAgICAgICAgLnRoZW4ocmVzcG9uc2UgPT4gewogICAgICAgICAgY29uc3QgY29weSA9IHJlc3BvbnNlLmNsb25lKCk7CiAgICAgICAgICBjYWNoZXMub3BlbihDQUNIRV9OQU1FKS50aGVuKGNhY2hlID0+IGNhY2hlLnB1dCgnLi9pbmRleC5odG1sJywgY29weSkpOwogICAgICAgICAgcmV0dXJuIHJlc3BvbnNlOwogICAgICAgIH0pCiAgICAgICAgLmNhdGNoKCgpID0+IGNhY2hlcy5tYXRjaCgnLi9pbmRleC5odG1sJykpCiAgICApOwogICAgcmV0dXJuOwogIH0KCiAgZXZlbnQucmVzcG9uZFdpdGgoCiAgICBjYWNoZXMubWF0Y2gocmVxdWVzdCkudGhlbihjYWNoZWQgPT4gY2FjaGVkIHx8IGZldGNoKHJlcXVlc3QpKQogICk7Cn0pOw0K
+'use strict';
+
+const CACHE_NAME = 'taicimaster-shell-v2';
+const APP_SHELL = [
+  './',
+  './index.html',
+  './config.js',
+  './bridge-client.js',
+  './manifest.webmanifest',
+  './assets/app-icon.svg'
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys
+        .filter(key => key.startsWith('taicimaster-shell-') && key !== CACHE_NAME)
+        .map(key => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then(cached => cached || fetch(request))
+  );
+});
+
