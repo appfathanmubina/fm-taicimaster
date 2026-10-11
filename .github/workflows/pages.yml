@@ -8,7 +8,7 @@ permissions:
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  group: taicimaster-pages
   cancel-in-progress: true
 jobs:
   deploy:
