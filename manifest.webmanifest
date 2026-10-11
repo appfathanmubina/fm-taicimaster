@@ -1,1 +1,16 @@
-ewogICJpZCI6ICIuLyIsCiAgIm5hbWUiOiAiVEFJQ0lNQVNURVIgRk0iLAogICJzaG9ydF9uYW1lIjogIlRBSUNJTUFTVEVSIiwKICAiZGVzY3JpcHRpb24iOiAiU2lzdGVtIFBlcmtlbWJhbmdhbiBTYW50cmkgLSBUQUlDSU1BU1RFUiBGTSIsCiAgInN0YXJ0X3VybCI6ICIuLyIsCiAgInNjb3BlIjogIi4vIiwKICAiZGlzcGxheSI6ICJzdGFuZGFsb25lIiwKICAib3JpZW50YXRpb24iOiAicG9ydHJhaXQtcHJpbWFyeSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI0Y4RkFGQyIsCiAgInRoZW1lX2NvbG9yIjogIiM3RTIyQ0UiLAogICJpY29ucyI6IFsKICAgIHsgInNyYyI6ICIuL2Fzc2V0cy9pY29uLTE5Mi5wbmciLCAic2l6ZXMiOiAiMTkyeDE5MiIsICJ0eXBlIjogImltYWdlL3BuZyIsICJwdXJwb3NlIjogImFueSIgfSwKICAgIHsgInNyYyI6ICIuL2Fzc2V0cy9pY29uLTUxMi5wbmciLCAic2l6ZXMiOiAiNTEyeDUxMiIsICJ0eXBlIjogImltYWdlL3BuZyIsICJwdXJwb3NlIjogImFueSBtYXNrYWJsZSIgfQogIF0KfQ0K
+{
+  "id": "./",
+  "name": "TAICIMASTER FM",
+  "short_name": "TAICIMASTER",
+  "description": "Sistem Perkembangan Santri - TAICIMASTER FM",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8FAFC",
+  "theme_color": "#7E22CE",
+  "icons": [
+    { "src": "./assets/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
+
