@@ -1,21 +1,15 @@
 # TAICIMASTER FM PWA
 
-Frontend GitHub Pages untuk TAICIMASTER FM. Aplikasi menggunakan Google Apps Script sebagai backend melalui PWA bridge.
+## Mengaktifkan Web Push
 
-## Publikasi GitHub Pages
+Push dikirim melalui OneSignal. App ID dan REST API Key dikelola dari panel Superadmin aplikasi; REST API Key tidak perlu ditaruh di `config.js` atau GitHub.
 
-1. Buka **Settings → Pages** pada repository `appfathanmubina/fm-taicimaster`.
-2. Pilih **GitHub Actions** sebagai build and deployment source.
-3. Workflow akan menerbitkan isi repository ke `https://appfathanmubina.github.io/fm-taicimaster/` setiap ada perubahan di `main`.
+1. Buat aplikasi Web Push di OneSignal dan gunakan host PWA `https://appfathanmubina.github.io`. Pastikan worker `push/onesignal/OneSignalSDKWorker.js` dapat diakses dari GitHub Pages.
+2. Ganti `Code.gs` dan `SetupDatabase.gs` di Apps Script dengan berkas pada paket tiga-file, lalu deploy ulang Web App. Jalankan `setupDatabaseSheets()` untuk memastikan sheet antrean dan inbox dibuat.
+3. Masuk sebagai Superadmin, buka menu **WhatsApp & Notifikasi**, isi **OneSignal App ID** dan **REST API Key**, centang aktivasi Web Push, lalu pilih **Simpan & Terapkan**. Kunci disimpan di Script Properties.
+4. Pengguna lain perlu masuk kembali setelah push diaktifkan. Tekan **Aktifkan Push** pada perangkat dan setujui izin notifikasi.
+5. Pengguna iPhone/iPad perlu iOS/iPadOS 16.4 atau lebih baru, menambahkan PWA ke Layar Utama, lalu membuka aplikasi dari ikon tersebut sebelum meminta izin push.
 
-## Hubungkan ke Apps Script
+Kode mengarahkan notifikasi ke wali santri yang terhubung dengan santri, wali kelas yang `Akses_Kelas`-nya cocok, serta admin yang relevan dengan jenis data. Prestasi pending hanya dikirim ke admin untuk ditinjau; hasil persetujuan atau penolakan dikirim kepada wali kelas terkait. Riwayat di dalam aplikasi bersifat per akun. Push diproses oleh trigger Apps Script kira-kira setiap menit, dan antrean mencoba ulang kegagalan sampai tiga kali.
 
-`config.js` saat ini menunjuk ke deployment Apps Script yang digunakan oleh paket Stage 11.28.6. Jika URL deployment berubah, perbarui `appsScriptUrl`, `bridgeUrl`, dan `pwaOrigin` di file tersebut. Origin PWA harus tetap sama dengan allowlist bridge di Apps Script.
-
-Pastikan deployment Apps Script yang dituju sudah memuat `doGet(...?bridge=1)`, `getTaiciPwaBridgeConfig()`, dan `taiciPwaBridgeCall()`. Sesudah mengubah kode server, terbitkan versi deployment Web App terbaru pada URL yang dikonfigurasi.
-
-## PWA dan mode offline
-
-Manifest, ikon, dan service worker disiapkan untuk instalasi PWA dari browser. Banner **Pasang TAICIMASTER FM** muncul sejak kunjungan pertama dan tetap tersedia di layar aplikasi selama aplikasi belum terdeteksi terpasang. Service worker menyimpan app shell agar halaman dapat dibuka kembali tanpa jaringan; autentikasi, data, dan operasi tetap memerlukan koneksi ke Apps Script.
-
-Tailwind, SweetAlert2, Font Awesome, dan Google Fonts masih dimuat dari CDN, sehingga tampilan penuh membutuhkan koneksi internet.
+Notifikasi push hanya berlaku untuk data baru setelah Code.gs yang diperbarui aktif. Kode tidak mengirim detail kesehatan, disiplin, atau catatan pribadi ke teks push.
