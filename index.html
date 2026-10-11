@@ -171,6 +171,9 @@
           <i class="fa-solid fa-right-to-bracket mr-2"></i> Masuk ke Portal
         </button>
       </form>
+      <button type="button" id="install-app-button" onclick="handleInstallApp()" class="w-full mt-3 border border-white/70 bg-white/70 hover:bg-white text-amethyst-800 font-bold py-2.5 rounded-xl transition">
+        <i class="fa-solid fa-download mr-2"></i><span id="install-app-button-label">Pasang Aplikasi</span>
+      </button>
     </div>
   </div>
 
@@ -927,8 +930,64 @@
       return !!((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true);
     }
 
+
+    let deferredInstallPrompt = null;
+
+    function isIosInstallDevice() {
+      const ua = window.navigator.userAgent || '';
+      return /iPad|iPhone|iPod/i.test(ua) || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+    }
+
+    function updateInstallButton() {
+      const button = document.getElementById('install-app-button');
+      const label = document.getElementById('install-app-button-label');
+      if (!button) return;
+      const installed = isAppLikeMode();
+      button.classList.toggle('hidden', installed);
+      if (label) label.textContent = deferredInstallPrompt ? 'Pasang Aplikasi' : (isIosInstallDevice() ? 'Pasang di iPhone / iPad' : 'Petunjuk Pasang Aplikasi');
+    }
+
+    function handleInstallApp() {
+      if (isAppLikeMode()) {
+        Swal.fire('Aplikasi sudah terpasang', 'TAICIMASTER FM sudah berjalan dalam mode aplikasi.', 'success');
+        return;
+      }
+      if (deferredInstallPrompt) {
+        const promptEvent = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        updateInstallButton();
+        promptEvent.prompt();
+        promptEvent.userChoice.then(choice => {
+          if (choice && choice.outcome === 'accepted') {
+            Swal.fire('Pemasangan dimulai', 'Ikuti konfirmasi dari browser untuk menyelesaikan pemasangan.', 'success');
+          }
+          updateInstallButton();
+        }).catch(() => updateInstallButton());
+        return;
+      }
+      const ios = isIosInstallDevice();
+      const title = ios ? 'Pasang TAICIMASTER di iPhone / iPad' : 'Pasang TAICIMASTER FM';
+      const instructions = ios
+        ? '<ol style="text-align:left;padding-left:1.25rem;line-height:1.8"><li>Buka halaman ini di <b>Safari</b> (bukan browser dalam aplikasi lain).</li><li>Ketuk tombol <b>Bagikan</b> (ikon kotak dengan panah ke atas).</li><li>Pilih <b>Tambahkan ke Layar Utama</b>, lalu ketuk <b>Tambah</b>.</li></ol>'
+        : '<ol style="text-align:left;padding-left:1.25rem;line-height:1.8"><li>Buka halaman ini di <b>Google Chrome</b>.</li><li>Ketuk menu <b>⋮</b> di kanan atas.</li><li>Pilih <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b>.</li></ol><p style="text-align:left;margin-top:.75rem">Jika halaman dibuka dari browser dalam aplikasi lain, buka dahulu di Chrome.</p>';
+      Swal.fire({ title, html: instructions, icon: 'info', confirmButtonText: 'Mengerti' });
+    }
+
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      updateInstallButton();
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      updateInstallButton();
+      Swal.fire('Berhasil dipasang', 'TAICIMASTER FM sekarang tersedia dari layar utama perangkat.', 'success');
+    });
+    window.addEventListener('resize', updateInstallButton);
+
     window.onload = function() {
       initAppLikeMode();
+      updateInstallButton();
       const today = new Date().toISOString().split('T')[0];
       if(document.getElementById('p-tanggal')) document.getElementById('p-tanggal').value = today;
       if(document.getElementById('l-tanggal')) document.getElementById('l-tanggal').value = today;
