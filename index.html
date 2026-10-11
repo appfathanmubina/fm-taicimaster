@@ -212,6 +212,8 @@
             <span id="user-display-role" class="inline-block bg-purple-900/60 text-purple-200 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">--</span>
           </div>
           <button onclick="openChangePasswordModal()" title="Ganti Password" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-key"></i></button>
+          <button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" class="relative h-9 rounded-full bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition"><i class="fa-solid fa-inbox mr-1"></i>Riwayat<span id="notification-unread-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] leading-4 px-1"></span></button>
+          <button type="button" id="push-notification-button" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden h-9 rounded-full bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label">Aktifkan Push</span></button>
           <button onclick="handleLogout()" title="Keluar" class="w-9 h-9 rounded-full bg-rose-500/80 hover:bg-rose-600 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-power-off"></i></button>
         </div>
       </div>
@@ -668,6 +670,14 @@
                 <div class="flex gap-2"><button onclick="stage8SaveSettings()" class="px-4 py-2 rounded-xl bg-amethyst-700 text-white text-xs font-bold">Simpan Konfigurasi</button><button id="stage8-trigger-btn" onclick="stage8ToggleTrigger()" class="px-4 py-2 rounded-xl bg-slate-100 text-xs font-bold">Trigger</button></div>
                 <p class="text-[11px] text-slate-500">Token disimpan di Script Properties, bukan di Spreadsheet. Format payload mengikuti provider yang dipilih.</p>
               </div>
+              <div class="border rounded-2xl p-4 space-y-3">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-bell text-amber-500 mr-1"></i> OneSignal Web Push</h3>
+                <label class="flex items-center gap-2 text-xs font-bold"><input id="webpush-enabled" type="checkbox" class="w-4 h-4"> Aktifkan push Android / iOS</label>
+                <div><label class="block text-xs font-bold mb-1">OneSignal App ID</label><input id="webpush-appid" type="text" autocomplete="off" placeholder="App ID dari OneSignal → Settings → Keys & IDs" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                <div><label class="block text-xs font-bold mb-1">REST API Key</label><input id="webpush-apikey" type="password" autocomplete="new-password" placeholder="Kosongkan jika tidak mengganti key" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                <button onclick="stage8SaveWebPushSettings()" class="px-4 py-2 rounded-xl bg-amethyst-700 text-white text-xs font-bold">Simpan & Terapkan</button>
+                <p id="webpush-setup-status" class="text-[11px] text-slate-500">REST API Key akan disimpan di Script Properties dan tidak ditampilkan kembali.</p>
+              </div>
               <div class="border rounded-2xl p-4">
                 <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-sm">Antrean Notifikasi</h3><button onclick="stage8LoadQueue()" class="text-xs font-bold text-amethyst-700">Refresh</button></div>
                 <div class="overflow-auto max-h-80"><table class="w-full text-xs"><thead class="bg-slate-50 sticky top-0"><tr><th class="p-2 text-left">Waktu</th><th class="p-2 text-left">Santri</th><th class="p-2">Status</th><th class="p-2">Aksi</th></tr></thead><tbody id="stage8-queue-list"><tr><td colspan="4" class="p-4 text-center text-slate-400">Memuat...</td></tr></tbody></table></div>
@@ -814,7 +824,7 @@
       <header class="gradient-header text-white sticky top-0 z-20 shadow-lg">
         <div class="max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30"><i class="fa-solid fa-house-user"></i></div><div><h1 class="font-extrabold tracking-wide">TAICIMASTER FM</h1><p class="text-[11px] text-purple-200">Portal Wali Santri</p></div></div>
-          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
+          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button onclick="openNotificationInbox()" class="px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-inbox mr-1"></i>Notifikasi</button><button id="push-notification-button-portal" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label-portal">Aktifkan Push</span></button><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
         </div>
       </header>
       <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -1140,6 +1150,8 @@
     }
 
     function loadSystemConfigAndInit() {
+      if(typeof syncPushIdentity==='function')syncPushIdentity(currentUser);
+      if(typeof refreshUserNotificationBadge==='function')refreshUserNotificationBadge();
       TaiciBridge.run.withSuccessHandler(config => {
         globalConfig=config; applyRolePermissions(); applyExtendedPermissions(); applyMobileBottomNav(); updateFormModalAccess();
         Swal.close(); startInitialDataSync().then(()=>{
@@ -2587,11 +2599,13 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
     oldApplyRolePermissions8();
     const el=document.getElementById('stage8-notification-center');
     if(el) el.classList.toggle('hidden', !(currentUser && currentUser.role==='superadmin'));
-    if(currentUser && currentUser.role==='superadmin'){stage8LoadStatus();stage8LoadSettings();stage8LoadQueue();}
+    if(currentUser && currentUser.role==='superadmin'){stage8LoadStatus();stage8LoadSettings();stage8LoadWebPushStatus();stage8LoadQueue();}
   };
   function call8(name,args,ok){ var runner=TaiciBridge.run.withSuccessHandler(ok); runner[name].apply(runner,args||[]); }
   window.stage8LoadStatus=function(){call8('getStage8Status',[currentUser.sessionToken],function(r){if(!r.success)return;const c=r.counts||{};document.getElementById('stage8-status').innerHTML=`<div class="p-3 rounded-xl bg-emerald-50"><b>Gateway</b><br>${r.config.enabled?'Aktif':'Nonaktif'}</div><div class="p-3 rounded-xl bg-amber-50"><b>Antrean</b><br>${c.QUEUED||0}</div><div class="p-3 rounded-xl bg-sky-50"><b>Terkirim</b><br>${c.SENT||0}</div><div class="p-3 rounded-xl bg-rose-50"><b>Gagal</b><br>${c.FAILED||0}</div>`;const b=document.getElementById('stage8-trigger-btn');b.textContent=r.config.triggerEnabled?'Matikan Trigger':'Aktifkan Trigger';b.className='px-4 py-2 rounded-xl text-xs font-bold '+(r.config.triggerEnabled?'bg-rose-100 text-rose-800':'bg-emerald-100 text-emerald-800');});};
   window.stage8LoadSettings=function(){call8('getWhatsAppSettings',[currentUser.sessionToken],function(r){if(!r.success)return;const d=r.data||{};document.getElementById('stage8-enabled').checked=!!d.enabled;document.getElementById('stage8-provider').value=d.provider||'GENERIC_JSON';document.getElementById('stage8-endpoint').value=d.endpoint||'';document.getElementById('stage8-sender').value=d.sender||'';document.getElementById('stage8-autoqueue').checked=d.autoQueue!==false;document.getElementById('stage8-retries').value=d.maxRetries||3;});};
+  window.stage8LoadWebPushStatus=function(){call8('getWebPushStatus',[currentUser.sessionToken],function(r){if(!r||!r.success)return;const c=r.config||{};document.getElementById('webpush-enabled').checked=!!c.enabled;document.getElementById('webpush-appid').value=c.appId||'';document.getElementById('webpush-setup-status').textContent=c.enabled?'Push aktif · antrean '+((r.counts||{}).QUEUED||0)+' · API key '+(c.apiKeyConfigured?'tersimpan':'belum diatur')+'.':'Push nonaktif · App ID '+(c.appId?'tersimpan':'belum diatur')+' · API key '+(c.apiKeyConfigured?'tersimpan':'belum diatur')+'.';});};
+  window.stage8SaveWebPushSettings=function(){const d={enabled:document.getElementById('webpush-enabled').checked,appId:document.getElementById('webpush-appid').value.trim(),apiKey:document.getElementById('webpush-apikey').value.trim()};call8('saveWebPushSettings',[d,currentUser.sessionToken],function(r){Swal.fire(r.success?'Berhasil':'Gagal',r.message||'',r.success?'success':'error');if(r.success){document.getElementById('webpush-apikey').value='';stage8LoadWebPushStatus();}});};
   window.stage8SaveSettings=function(){const d={enabled:document.getElementById('stage8-enabled').checked,provider:document.getElementById('stage8-provider').value,endpoint:document.getElementById('stage8-endpoint').value.trim(),token:document.getElementById('stage8-token').value, sender:document.getElementById('stage8-sender').value.trim(),autoQueue:document.getElementById('stage8-autoqueue').checked,maxRetries:Number(document.getElementById('stage8-retries').value||3)};call8('saveWhatsAppSettings',[d,currentUser.sessionToken],function(r){Swal.fire(r.success?'Berhasil':'Gagal',r.message||'',r.success?'success':'error');if(r.success){document.getElementById('stage8-token').value='';stage8LoadStatus();}});};
   window.stage8TestWhatsApp=function(){Swal.fire({title:'Mengirim tes gateway...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});call8('testWhatsAppConnection',[currentUser.sessionToken],function(r){Swal.fire(r.success?'Gateway Merespons':'Tes Gagal',r.message||'',r.success?'success':'error');});};
   window.stage8ProcessQueue=function(){Swal.fire({title:'Memproses antrean...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});call8('processWhatsAppQueue',[],function(r){Swal.fire(r.success?'Selesai':'Gagal',r.message||(`Diproses ${r.processed||0}, terkirim ${r.sent||0}, gagal ${r.failed||0}`),r.success?'success':'error');stage8LoadStatus();stage8LoadQueue();});};
@@ -2617,6 +2631,8 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
   var oldLoad=window.loadSystemConfigAndInit;
    window.loadSystemConfigAndInit=function(){
      if(currentUser&&currentUser.role==='wali_santri'){
+       if(typeof syncPushIdentity==='function')syncPushIdentity(currentUser);
+       if(typeof refreshUserNotificationBadge==='function')refreshUserNotificationBadge();
        TaiciBridge.run
          .withSuccessHandler(function(config){
            globalConfig=config;
@@ -2761,6 +2777,35 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
         .catch(function (error) { console.warn('PWA offline shell tidak terdaftar:', error); });
     });
   }
+</script>
+
+<script>
+/* Per-user in-app notification inbox. */
+(function(){
+  function callInbox(name,args,done){var r=TaiciBridge.run.withSuccessHandler(done).withFailureHandler(function(e){Swal.fire('Gagal memuat notifikasi',e&&e.message?e.message:'Terjadi kesalahan sistem.','error');});r[name].apply(r,args||[]);}
+  window.refreshUserNotificationBadge=function(){if(!currentUser||!currentUser.sessionToken)return;callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){if(!r||!r.success)return;var b=document.getElementById('notification-unread-badge'),n=Number(r.unread||0);if(!b)return;b.textContent=n>99?'99+':String(n);b.classList.toggle('hidden',n<1);});};
+  window.openNotificationInbox=function(){if(!currentUser||!currentUser.sessionToken)return;callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){if(!r||!r.success)return Swal.fire('Gagal',r&&r.message||'Riwayat notifikasi tidak dapat dimuat.','error');var items=r.data||[],html=items.length?'<div class="space-y-2 text-left max-h-[60vh] overflow-y-auto">'+items.map(function(x){return '<button type="button" data-notification-id="'+escapeHtml(x.id)+'" class="notification-inbox-item w-full text-left border rounded-xl p-3 '+(x.read?'bg-white border-slate-200':'bg-purple-50 border-purple-200')+'"><div class="flex items-start justify-between gap-3"><b class="text-sm text-slate-800">'+escapeHtml(x.title||x.type||'Notifikasi')+'</b><span class="text-[10px] text-slate-400 shrink-0">'+escapeHtml(x.timestamp||'')+'</span></div><p class="text-xs text-slate-600 mt-1">'+escapeHtml(x.message||'')+'</p><span class="text-[9px] uppercase font-bold text-slate-400 mt-2 inline-block">'+(x.read?'Sudah dibaca':'Baru')+'</span></button>';}).join('')+'</div>':'<p class="text-sm text-slate-500 py-8">Belum ada riwayat notifikasi.</p>';Swal.fire({title:'Riwayat Notifikasi',html:html,width:620,showConfirmButton:false,showCloseButton:true,didOpen:function(){document.querySelectorAll('.notification-inbox-item').forEach(function(btn){btn.addEventListener('click',function(){callInbox('markUserNotificationRead',[currentUser.sessionToken,this.getAttribute('data-notification-id')],function(){refreshUserNotificationBadge();openNotificationInbox();});});});}});});};
+  setInterval(function(){if(currentUser)refreshUserNotificationBadge();},60000);
+})();
+</script>
+<script>
+/* OneSignal Web Push; App ID and delivery keys are managed in Apps Script. */
+window.TaiciPush=(function(){
+  let client=null,initPromise=null,loaded=false;
+  const buttons=()=>document.querySelectorAll('[id^="push-notification-button"]');
+  const labels=()=>document.querySelectorAll('[id^="push-notification-label"]');
+  function visible(value){buttons().forEach(b=>b.classList.toggle('hidden',!value));}
+  function update(){let active=false;try{active=!!(client&&client.User.PushSubscription.optedIn);}catch(e){}labels().forEach(n=>n.textContent=active?'Notifikasi Aktif':'Aktifkan Push');}
+  function identity(user){return new Promise((resolve,reject)=>TaiciBridge.run.withSuccessHandler(resolve).withFailureHandler(reject).getWebPushIdentity(user.sessionToken));}
+  function init(appId){if(client)return Promise.resolve(client);if(initPromise)return initPromise;initPromise=new Promise((resolve,reject)=>{window.OneSignalDeferred=window.OneSignalDeferred||[];window.OneSignalDeferred.push(async function(os){try{await os.init({appId:appId,serviceWorkerPath:'/fm-taicimaster/push/onesignal/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/fm-taicimaster/push/onesignal/'},autoResubscribe:true,welcomeNotification:{disable:true}});client=os;resolve(os);update();}catch(e){initPromise=null;reject(e);}});if(!loaded){var s=document.createElement('script');s.src='https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';s.defer=true;s.onerror=function(){initPromise=null;reject(new Error('SDK OneSignal gagal dimuat.'));};document.head.appendChild(s);loaded=true;}});return initPromise;}
+  return {
+    syncIdentity:async function(user){visible(false);if(!user||!user.sessionToken)return;try{var d=await identity(user);if(!d||!d.success||!d.enabled||!d.appId)return;var os=await init(d.appId);await os.login(String(d.externalId));visible(true);update();}catch(e){console.warn('Sinkronisasi identitas push gagal:',e);}},
+    logout:async function(){if(!client)return;try{await client.logout();}catch(e){}client=null;initPromise=null;visible(false);},
+    enable:function(){var u=typeof currentUser!=='undefined'?currentUser:null;if(!client||!u||!u.sessionToken){Swal.fire('Push belum siap','Pastikan OneSignal aktif, lalu masuk kembali.','info');return;}var apple=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(apple&&!installed){Swal.fire('Pasang aplikasi terlebih dahulu','Di iPhone/iPad, tambahkan situs ke Layar Utama, buka dari ikon aplikasi, lalu aktifkan notifikasi.','info');return;}try{var optIn=client.User.PushSubscription.optIn();Promise.resolve(optIn).then(function(){update();Swal.fire(client.User.PushSubscription.optedIn?'Notifikasi aktif':'Izin belum diberikan',client.User.PushSubscription.optedIn?'Perangkat ini akan menerima pemberitahuan sesuai role dan akses akun.':'Izinkan notifikasi melalui dialog browser atau pengaturan perangkat.',client.User.PushSubscription.optedIn?'success':'info');}).catch(function(e){console.warn('Gagal meminta izin push:',e);Swal.fire('Gagal mengaktifkan','Periksa izin notifikasi browser/perangkat lalu coba kembali.','error');});}catch(e){Swal.fire('Gagal mengaktifkan','Periksa izin notifikasi browser/perangkat lalu coba kembali.','error');}}
+  };
+})();
+function enablePushNotifications(){window.TaiciPush.enable();}
+function syncPushIdentity(user){if(window.TaiciPush)window.TaiciPush.syncIdentity(user);}
 </script>
 </body>
 </html>
