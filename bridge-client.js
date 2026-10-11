@@ -14,6 +14,7 @@
   let serial = 0;
   let ready = false;
   let bridgeOrigin = '';
+  let bridgeWindow = null;
 
   const frame = document.createElement('iframe');
   frame.title = 'TAICIMASTER backend bridge';
@@ -40,9 +41,9 @@
   }
 
   function sendPending(item) {
-    if (!ready || !bridgeOrigin || !frame.contentWindow || item.sent) return;
+    if (!ready || !bridgeOrigin || !bridgeWindow || item.sent) return;
     item.sent = true;
-    frame.contentWindow.postMessage({
+    bridgeWindow.postMessage({
       source: SOURCE,
       type: 'request',
       id: item.id,
@@ -51,13 +52,38 @@
     }, bridgeOrigin);
   }
 
+  // Apps Script wraps HtmlService output in one or more internal frames.
+  // Accept bridge messages only from a descendant of our iframe, then target
+  // that exact window for requests and responses.
+  function isFrameDescendant(source) {
+    if (!source || !frame.contentWindow) return false;
+    const queue = [{ win: frame.contentWindow, depth: 0 }];
+    const visited = new Set();
+    while (queue.length && visited.size < 100) {
+      const current = queue.shift();
+      if (!current.win || visited.has(current.win)) continue;
+      visited.add(current.win);
+      if (current.win === source) return true;
+      if (current.depth >= 8) continue;
+      try {
+        for (let i = 0; i < current.win.frames.length; i++) {
+          queue.push({ win: current.win.frames[i], depth: current.depth + 1 });
+        }
+      } catch (_) {
+        // Cross-origin frame enumeration may be restricted by the browser.
+      }
+    }
+    return false;
+  }
+
   window.addEventListener('message', function (event) {
-    if (!BRIDGE_ORIGIN_PATTERN.test(event.origin) || event.source !== frame.contentWindow) return;
+    if (!BRIDGE_ORIGIN_PATTERN.test(event.origin) || !isFrameDescendant(event.source)) return;
     const data = event.data || {};
     if (data.source !== BRIDGE_SOURCE) return;
 
     if (data.type === 'ready') {
       bridgeOrigin = event.origin;
+      bridgeWindow = event.source;
       ready = true;
       pending.forEach(sendPending);
       return;
@@ -65,10 +91,12 @@
     if (data.type === 'bridge-error') {
       ready = false;
       bridgeOrigin = '';
+      bridgeWindow = null;
       reportPendingFailure(data.error && data.error.message || 'Konfigurasi bridge gagal dimuat.');
       return;
     }
     if (data.type !== 'response') return;
+    if (event.source !== bridgeWindow || event.origin !== bridgeOrigin) return;
 
     const id = String(data.id || '');
     const item = pending.get(id);
