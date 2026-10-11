@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'taicimaster-shell-v4';
+const CACHE_NAME = 'taicimaster-shell-v6';
 const APP_SHELL = [
   './',
   './index.html',
