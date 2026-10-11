@@ -1,1 +1,130 @@
-KGZ1bmN0aW9uICgpIHsKICAndXNlIHN0cmljdCc7CgogIGNvbnN0IGNvbmZpZyA9IHdpbmRvdy5UQUlDSV9QV0FfQ09ORklHIHx8IHt9OwogIGNvbnN0IGNvbmZpZ3VyZWRCcmlkZ2VVcmwgPSBTdHJpbmcoY29uZmlnLmJyaWRnZVVybCB8fCAnJykudHJpbSgpOwogIGNvbnN0IGFwcHNTY3JpcHRVcmwgPSBTdHJpbmcoY29uZmlnLmFwcHNTY3JpcHRVcmwgfHwgJycpLnRyaW0oKTsKICBjb25zdCBCUklER0VfVVJMID0gY29uZmlndXJlZEJyaWRnZVVybCB8fCAoYXBwc1NjcmlwdFVybAogICAgPyBhcHBzU2NyaXB0VXJsICsgKGFwcHNTY3JpcHRVcmwuaW5kZXhPZignPycpID49IDAgPyAnJicgOiAnPycpICsgJ2JyaWRnZT0xJwogICAgOiAnJyk7CiAgY29uc3QgT1JJR0lOID0gU3RyaW5nKGNvbmZpZy5wd2FPcmlnaW4gfHwgd2luZG93LmxvY2F0aW9uLm9yaWdpbikucmVwbGFjZSgvXC8kLywgJycpOwogIGNvbnN0IEJSSURHRV9PUklHSU5fUEFUVEVSTiA9IC9eaHR0cHM6XC9cLyhzY3JpcHRcLmdvb2dsZVwuY29tfFthLXowLTktXSstc2NyaXB0XC5nb29nbGV1c2VyY29udGVudFwuY29tKSQvaTsKICBjb25zdCBTT1VSQ0UgPSAndGFpY2ltYXN0ZXItZm0tcHdhJzsKICBjb25zdCBCUklER0VfU09VUkNFID0gJ3RhaWNpbWFzdGVyLWZtLWFwaS1icmlkZ2UnOwogIGNvbnN0IHBlbmRpbmcgPSBuZXcgTWFwKCk7CiAgbGV0IHNlcmlhbCA9IDA7CiAgbGV0IHJlYWR5ID0gZmFsc2U7CgogIGNvbnN0IGZyYW1lID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnaWZyYW1lJyk7CiAgZnJhbWUudGl0bGUgPSAnVEFJQ0lNQVNURVIgYmFja2VuZCBicmlkZ2UnOwogIGZyYW1lLnNldEF0dHJpYnV0ZSgnYXJpYS1oaWRkZW4nLCAndHJ1ZScpOwogIGZyYW1lLnRhYkluZGV4ID0gLTE7CiAgZnJhbWUuc3R5bGUuY3NzVGV4dCA9ICdwb3NpdGlvbjphYnNvbHV0ZTt3aWR0aDoxcHg7aGVpZ2h0OjFweDtib3JkZXI6MDtvcGFjaXR5OjA7cG9pbnRlci1ldmVudHM6bm9uZTtsZWZ0Oi0xMHB4O3RvcDotMTBweCc7CgogIGZ1bmN0aW9uIHJlcG9ydFBlbmRpbmdGYWlsdXJlKG1lc3NhZ2UpIHsKICAgIHBlbmRpbmcuZm9yRWFjaChmdW5jdGlvbiAoaXRlbSwgaWQpIHsKICAgICAgY2xlYXJUaW1lb3V0KGl0ZW0udGltZXIpOwogICAgICBwZW5kaW5nLmRlbGV0ZShpZCk7CiAgICAgIGl0ZW0uZmFpbChuZXcgRXJyb3IobWVzc2FnZSkpOwogICAgfSk7CiAgfQoKICBmdW5jdGlvbiBlbnN1cmVGcmFtZSgpIHsKICAgIGlmICghL15odHRwczpcL1wvc2NyaXB0XC5nb29nbGVcLmNvbVwvbWFjcm9zXC9zXC8vaS50ZXN0KEJSSURHRV9VUkwpKSB7CiAgICAgIHRocm93IG5ldyBFcnJvcignVVJMIGRlcGxveW1lbnQgQXBwcyBTY3JpcHQgYmVsdW0gZGlrb25maWd1cmFzaSBkZW5nYW4gYmVuYXIuJyk7CiAgICB9CiAgICBpZiAoIWZyYW1lLmlzQ29ubmVjdGVkKSB7CiAgICAgIGZyYW1lLnNyYyA9IEJSSURHRV9VUkw7CiAgICAgIGRvY3VtZW50LmJvZHkuYXBwZW5kQ2hpbGQoZnJhbWUpOwogICAgfQogIH0KCiAgZnVuY3Rpb24gc2VuZFBlbmRpbmcoaXRlbSkgewogICAgaWYgKCFyZWFkeSB8fCAhZnJhbWUuY29udGVudFdpbmRvdyB8fCBpdGVtLnNlbnQpIHJldHVybjsKICAgIGl0ZW0uc2VudCA9IHRydWU7CiAgICBmcmFtZS5jb250ZW50V2luZG93LnBvc3RNZXNzYWdlKHsKICAgICAgc291cmNlOiBTT1VSQ0UsCiAgICAgIHR5cGU6ICdyZXF1ZXN0JywKICAgICAgaWQ6IGl0ZW0uaWQsCiAgICAgIGZuOiBpdGVtLmZuLAogICAgICBhcmdzOiBpdGVtLmFyZ3MKICAgIH0sIE9SSUdJTik7CiAgfQoKICB3aW5kb3cuYWRkRXZlbnRMaXN0ZW5lcignbWVzc2FnZScsIGZ1bmN0aW9uIChldmVudCkgewogICAgaWYgKCFCUklER0VfT1JJR0lOX1BBVFRFUk4udGVzdChldmVudC5vcmlnaW4pIHx8IGV2ZW50LnNvdXJjZSAhPT0gZnJhbWUuY29udGVudFdpbmRvdykgcmV0dXJuOwogICAgY29uc3QgZGF0YSA9IGV2ZW50LmRhdGEgfHwge307CiAgICBpZiAoZGF0YS5zb3VyY2UgIT09IEJSSURHRV9TT1VSQ0UpIHJldHVybjsKCiAgICBpZiAoZGF0YS50eXBlID09PSAncmVhZHknKSB7CiAgICAgIHJlYWR5ID0gdHJ1ZTsKICAgICAgcGVuZGluZy5mb3JFYWNoKHNlbmRQZW5kaW5nKTsKICAgICAgcmV0dXJuOwogICAgfQogICAgaWYgKGRhdGEudHlwZSA9PT0gJ2JyaWRnZS1lcnJvcicpIHsKICAgICAgcmVhZHkgPSBmYWxzZTsKICAgICAgcmVwb3J0UGVuZGluZ0ZhaWx1cmUoZGF0YS5lcnJvciAmJiBkYXRhLmVycm9yLm1lc3NhZ2UgfHwgJ0tvbmZpZ3VyYXNpIGJyaWRnZSBnYWdhbCBkaW11YXQuJyk7CiAgICAgIHJldHVybjsKICAgIH0KICAgIGlmIChkYXRhLnR5cGUgIT09ICdyZXNwb25zZScpIHJldHVybjsKCiAgICBjb25zdCBpZCA9IFN0cmluZyhkYXRhLmlkIHx8ICcnKTsKICAgIGNvbnN0IGl0ZW0gPSBwZW5kaW5nLmdldChpZCk7CiAgICBpZiAoIWl0ZW0pIHJldHVybjsKICAgIHBlbmRpbmcuZGVsZXRlKGlkKTsKICAgIGNsZWFyVGltZW91dChpdGVtLnRpbWVyKTsKICAgIGlmIChkYXRhLm9rKSBpdGVtLm9rKGRhdGEucmVzdWx0KTsKICAgIGVsc2UgaXRlbS5mYWlsKG5ldyBFcnJvcihkYXRhLmVycm9yICYmIGRhdGEuZXJyb3IubWVzc2FnZSB8fCAnUGVybWludGFhbiBrZSBiYWNrZW5kIGdhZ2FsLicpKTsKICB9KTsKCiAgZnVuY3Rpb24gcnBjKGZuLCBhcmdzLCBvaywgZmFpbCkgewogICAgdHJ5IHsKICAgICAgZW5zdXJlRnJhbWUoKTsKICAgIH0gY2F0Y2ggKGVycm9yKSB7CiAgICAgIChmYWlsIHx8IGNvbnNvbGUuZXJyb3IpKGVycm9yKTsKICAgICAgcmV0dXJuOwogICAgfQoKICAgIGNvbnN0IGlkID0gU3RyaW5nKCsrc2VyaWFsKTsKICAgIGNvbnN0IGl0ZW0gPSB7CiAgICAgIGlkOiBpZCwKICAgICAgZm46IGZuLAogICAgICBhcmdzOiBhcmdzLAogICAgICBvazogb2sgfHwgZnVuY3Rpb24gKCkge30sCiAgICAgIGZhaWw6IGZhaWwgfHwgZnVuY3Rpb24gKGVycm9yKSB7IGNvbnNvbGUuZXJyb3IoZXJyb3IpOyB9LAogICAgICBzZW50OiBmYWxzZSwKICAgICAgdGltZXI6IHNldFRpbWVvdXQoZnVuY3Rpb24gKCkgewogICAgICAgIGlmICghcGVuZGluZy5oYXMoaWQpKSByZXR1cm47CiAgICAgICAgcGVuZGluZy5kZWxldGUoaWQpOwogICAgICAgIGl0ZW0uZmFpbChuZXcgRXJyb3IoJ1dha3R1IHR1bmdndSBiYWNrZW5kIGhhYmlzLicpKTsKICAgICAgfSwgNDUwMDApCiAgICB9OwogICAgcGVuZGluZy5zZXQoaWQsIGl0ZW0pOwogICAgc2VuZFBlbmRpbmcoaXRlbSk7CiAgfQoKICBmdW5jdGlvbiBtYWtlUnVubmVyKG9rLCBmYWlsKSB7CiAgICByZXR1cm4gbmV3IFByb3h5KHsKICAgICAgd2l0aFN1Y2Nlc3NIYW5kbGVyOiBmdW5jdGlvbiAoaGFuZGxlcikgeyByZXR1cm4gbWFrZVJ1bm5lcihoYW5kbGVyLCBmYWlsKTsgfSwKICAgICAgd2l0aEZhaWx1cmVIYW5kbGVyOiBmdW5jdGlvbiAoaGFuZGxlcikgeyByZXR1cm4gbWFrZVJ1bm5lcihvaywgaGFuZGxlcik7IH0KICAgIH0sIHsKICAgICAgZ2V0OiBmdW5jdGlvbiAodGFyZ2V0LCBwcm9wZXJ0eSkgewogICAgICAgIGlmIChwcm9wZXJ0eSBpbiB0YXJnZXQpIHJldHVybiB0YXJnZXRbcHJvcGVydHldOwogICAgICAgIGlmICh0eXBlb2YgcHJvcGVydHkgIT09ICdzdHJpbmcnIHx8IHByb3BlcnR5ID09PSAndGhlbicpIHJldHVybiB1bmRlZmluZWQ7CiAgICAgICAgcmV0dXJuIGZ1bmN0aW9uICgpIHsgcnBjKHByb3BlcnR5LCBBcnJheS5wcm90b3R5cGUuc2xpY2UuY2FsbChhcmd1bWVudHMpLCBvaywgZmFpbCk7IH07CiAgICAgIH0KICAgIH0pOwogIH0KCiAgd2luZG93LlRhaWNpQnJpZGdlID0gewogICAgcnVuOiBtYWtlUnVubmVyKG51bGwsIG51bGwpLAogICAgcmVhZHk6IGZ1bmN0aW9uICgpIHsgcmV0dXJuIHJlYWR5OyB9CiAgfTsKCiAgaWYgKGRvY3VtZW50LnJlYWR5U3RhdGUgPT09ICdsb2FkaW5nJykgewogICAgd2luZG93LmFkZEV2ZW50TGlzdGVuZXIoJ0RPTUNvbnRlbnRMb2FkZWQnLCBlbnN1cmVGcmFtZSwgeyBvbmNlOiB0cnVlIH0pOwogIH0gZWxzZSB7CiAgICBlbnN1cmVGcmFtZSgpOwogIH0KfSkoKTsNCg==
+(function () {
+  'use strict';
+
+  const config = window.TAICI_PWA_CONFIG || {};
+  const configuredBridgeUrl = String(config.bridgeUrl || '').trim();
+  const appsScriptUrl = String(config.appsScriptUrl || '').trim();
+  const BRIDGE_URL = configuredBridgeUrl || (appsScriptUrl
+    ? appsScriptUrl + (appsScriptUrl.indexOf('?') >= 0 ? '&' : '?') + 'bridge=1'
+    : '');
+  const ORIGIN = String(config.pwaOrigin || window.location.origin).replace(/\/$/, '');
+  const BRIDGE_ORIGIN_PATTERN = /^https:\/\/(script\.google\.com|[a-z0-9-]+-script\.googleusercontent\.com)$/i;
+  const SOURCE = 'taicimaster-fm-pwa';
+  const BRIDGE_SOURCE = 'taicimaster-fm-api-bridge';
+  const pending = new Map();
+  let serial = 0;
+  let ready = false;
+
+  const frame = document.createElement('iframe');
+  frame.title = 'TAICIMASTER backend bridge';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.style.cssText = 'position:absolute;width:1px;height:1px;border:0;opacity:0;pointer-events:none;left:-10px;top:-10px';
+
+  function reportPendingFailure(message) {
+    pending.forEach(function (item, id) {
+      clearTimeout(item.timer);
+      pending.delete(id);
+      item.fail(new Error(message));
+    });
+  }
+
+  function ensureFrame() {
+    if (!/^https:\/\/script\.google\.com\/macros\/s\//i.test(BRIDGE_URL)) {
+      throw new Error('URL deployment Apps Script belum dikonfigurasi dengan benar.');
+    }
+    if (!frame.isConnected) {
+      frame.src = BRIDGE_URL;
+      document.body.appendChild(frame);
+    }
+  }
+
+  function sendPending(item) {
+    if (!ready || !frame.contentWindow || item.sent) return;
+    item.sent = true;
+    frame.contentWindow.postMessage({
+      source: SOURCE,
+      type: 'request',
+      id: item.id,
+      fn: item.fn,
+      args: item.args
+    }, ORIGIN);
+  }
+
+  window.addEventListener('message', function (event) {
+    if (!BRIDGE_ORIGIN_PATTERN.test(event.origin) || event.source !== frame.contentWindow) return;
+    const data = event.data || {};
+    if (data.source !== BRIDGE_SOURCE) return;
+
+    if (data.type === 'ready') {
+      ready = true;
+      pending.forEach(sendPending);
+      return;
+    }
+    if (data.type === 'bridge-error') {
+      ready = false;
+      reportPendingFailure(data.error && data.error.message || 'Konfigurasi bridge gagal dimuat.');
+      return;
+    }
+    if (data.type !== 'response') return;
+
+    const id = String(data.id || '');
+    const item = pending.get(id);
+    if (!item) return;
+    pending.delete(id);
+    clearTimeout(item.timer);
+    if (data.ok) item.ok(data.result);
+    else item.fail(new Error(data.error && data.error.message || 'Permintaan ke backend gagal.'));
+  });
+
+  function rpc(fn, args, ok, fail) {
+    try {
+      ensureFrame();
+    } catch (error) {
+      (fail || console.error)(error);
+      return;
+    }
+
+    const id = String(++serial);
+    const item = {
+      id: id,
+      fn: fn,
+      args: args,
+      ok: ok || function () {},
+      fail: fail || function (error) { console.error(error); },
+      sent: false,
+      timer: setTimeout(function () {
+        if (!pending.has(id)) return;
+        pending.delete(id);
+        item.fail(new Error('Waktu tunggu backend habis.'));
+      }, 45000)
+    };
+    pending.set(id, item);
+    sendPending(item);
+  }
+
+  function makeRunner(ok, fail) {
+    return new Proxy({
+      withSuccessHandler: function (handler) { return makeRunner(handler, fail); },
+      withFailureHandler: function (handler) { return makeRunner(ok, handler); }
+    }, {
+      get: function (target, property) {
+        if (property in target) return target[property];
+        if (typeof property !== 'string' || property === 'then') return undefined;
+        return function () { rpc(property, Array.prototype.slice.call(arguments), ok, fail); };
+      }
+    });
+  }
+
+  window.TaiciBridge = {
+    run: makeRunner(null, null),
+    ready: function () { return ready; }
+  };
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', ensureFrame, { once: true });
+  } else {
+    ensureFrame();
+  }
+})();
+
