@@ -8,9 +8,13 @@
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F8FAFC",
-  "theme_color": "#7E22CE",
+  "theme_color": "#38257c",
   "icons": [
-    { "src": "./assets/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "purpose": "any maskable",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "src": "./assets/taicimaster-logo.svg"
+    }
   ]
 }
-
