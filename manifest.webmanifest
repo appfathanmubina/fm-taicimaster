@@ -11,10 +11,16 @@
   "theme_color": "#38257c",
   "icons": [
     {
+      "src": "./assets/icon-192.png",
+      "purpose": "any",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "./assets/icon-512.png",
       "purpose": "any maskable",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "src": "./assets/taicimaster-logo.svg"
+      "type": "image/png",
+      "sizes": "512x512"
     }
   ]
 }

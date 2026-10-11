@@ -1,13 +1,15 @@
 'use strict';
 
-const CACHE_NAME = 'taicimaster-shell-v3';
+const CACHE_NAME = 'taicimaster-shell-v4';
 const APP_SHELL = [
   './',
   './index.html',
   './config.js',
   './bridge-client.js',
   './manifest.webmanifest',
-  './assets/taicimaster-logo.svg'
+  './assets/taicimaster-logo.svg',
+  './assets/icon-192.png',
+  './assets/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
