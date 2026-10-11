@@ -7,13 +7,13 @@
   const BRIDGE_URL = configuredBridgeUrl || (appsScriptUrl
     ? appsScriptUrl + (appsScriptUrl.indexOf('?') >= 0 ? '&' : '?') + 'bridge=1'
     : '');
-  const ORIGIN = String(config.pwaOrigin || window.location.origin).replace(/\/$/, '');
   const BRIDGE_ORIGIN_PATTERN = /^https:\/\/(script\.google\.com|[a-z0-9-]+-script\.googleusercontent\.com)$/i;
   const SOURCE = 'taicimaster-fm-pwa';
   const BRIDGE_SOURCE = 'taicimaster-fm-api-bridge';
   const pending = new Map();
   let serial = 0;
   let ready = false;
+  let bridgeOrigin = '';
 
   const frame = document.createElement('iframe');
   frame.title = 'TAICIMASTER backend bridge';
@@ -40,7 +40,7 @@
   }
 
   function sendPending(item) {
-    if (!ready || !frame.contentWindow || item.sent) return;
+    if (!ready || !bridgeOrigin || !frame.contentWindow || item.sent) return;
     item.sent = true;
     frame.contentWindow.postMessage({
       source: SOURCE,
@@ -48,7 +48,7 @@
       id: item.id,
       fn: item.fn,
       args: item.args
-    }, ORIGIN);
+    }, bridgeOrigin);
   }
 
   window.addEventListener('message', function (event) {
@@ -57,12 +57,14 @@
     if (data.source !== BRIDGE_SOURCE) return;
 
     if (data.type === 'ready') {
+      bridgeOrigin = event.origin;
       ready = true;
       pending.forEach(sendPending);
       return;
     }
     if (data.type === 'bridge-error') {
       ready = false;
+      bridgeOrigin = '';
       reportPendingFailure(data.error && data.error.message || 'Konfigurasi bridge gagal dimuat.');
       return;
     }
