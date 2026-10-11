@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'taicimaster-shell-v9';
+const CACHE_NAME = 'taicimaster-shell-v10';
 const APP_SHELL = [
   './',
   './index.html',
@@ -54,4 +54,3 @@ self.addEventListener('fetch', event => {
     caches.match(request).then(cached => cached || fetch(request))
   );
 });
-
