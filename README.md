@@ -16,6 +16,6 @@ Pastikan deployment Apps Script yang dituju sudah memuat `doGet(...?bridge=1)`, 
 
 ## PWA dan mode offline
 
-Manifest, ikon, dan service worker disiapkan untuk instalasi PWA dari browser. Service worker menyimpan app shell agar halaman dapat dibuka kembali tanpa jaringan; autentikasi, data, dan operasi tetap memerlukan koneksi ke Apps Script.
+Manifest, ikon, dan service worker disiapkan untuk instalasi PWA dari browser. Banner **Pasang TAICIMASTER FM** muncul sejak kunjungan pertama dan tetap tersedia di layar aplikasi selama aplikasi belum terdeteksi terpasang. Service worker menyimpan app shell agar halaman dapat dibuka kembali tanpa jaringan; autentikasi, data, dan operasi tetap memerlukan koneksi ke Apps Script.
 
 Tailwind, SweetAlert2, Font Awesome, dan Google Fonts masih dimuat dari CDN, sehingga tampilan penuh membutuhkan koneksi internet.
