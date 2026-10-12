@@ -127,7 +127,7 @@
         if (!pending.has(id)) return;
         pending.delete(id);
         item.fail(new Error('Waktu tunggu backend habis.'));
-      }, 45000)
+      }, (fn === 'getUserNotifications' || fn === 'markUserNotificationRead') ? 90000 : 45000)
     };
     pending.set(id, item);
     sendPending(item);
