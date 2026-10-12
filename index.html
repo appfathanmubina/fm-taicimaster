@@ -2781,30 +2781,143 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 </script>
 
 <script>
-/* Per-user in-app notification inbox. */
+/* User notification inbox shared by every authenticated role. */
 (function(){
-  function callInbox(name,args,done){var r=TaiciBridge.run.withSuccessHandler(done).withFailureHandler(function(e){Swal.fire('Gagal memuat notifikasi',e&&e.message?e.message:'Terjadi kesalahan sistem.','error');});r[name].apply(r,args||[]);}
-  window.refreshUserNotificationBadge=function(){if(!currentUser||!currentUser.sessionToken)return;callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){if(!r||!r.success)return;var b=document.getElementById('notification-unread-badge'),n=Number(r.unread||0);if(!b)return;b.textContent=n>99?'99+':String(n);b.classList.toggle('hidden',n<1);});};
-  window.openNotificationInbox=function(){
-    if(!currentUser||!currentUser.sessionToken)return;
-    Swal.fire({title:'Memuat riwayat notifikasi',text:'Mohon tunggu sebentar…',allowOutsideClick:false,allowEscapeKey:false,didOpen:function(){Swal.showLoading();}});
-    callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){
-      if(!r||!r.success)return Swal.fire('Gagal',r&&r.message||'Riwayat notifikasi tidak dapat dimuat.','error');
-      var badge=document.getElementById('notification-unread-badge'),unread=Number(r.unread||0);
-      if(badge){badge.textContent=unread>99?'99+':String(unread);badge.classList.toggle('hidden',unread<1);}
-      var items=r.data||[];
-      var html=items.length?'<div class="space-y-2 text-left max-h-[60vh] overflow-y-auto">'+items.map(function(x){
-        return '<button type="button" data-notification-id="'+escapeHtml(x.id)+'" class="notification-inbox-item w-full text-left border rounded-xl p-3 '+(x.read?'bg-white border-slate-200':'bg-purple-50 border-purple-200')+'"><div class="flex items-start justify-between gap-3"><b class="text-sm text-slate-800">'+escapeHtml(x.title||x.type||'Notifikasi')+'</b><span class="text-[10px] text-slate-400 shrink-0">'+escapeHtml(x.timestamp||'')+'</span></div><p class="text-xs text-slate-600 mt-1">'+escapeHtml(x.message||'')+'</p><span class="text-[9px] uppercase font-bold text-slate-400 mt-2 inline-block">'+(x.read?'Sudah dibaca':'Baru')+'</span></button>';
-      }).join('')+'</div>':'<p class="text-sm text-slate-500 py-8">Belum ada riwayat notifikasi.</p>';
-      Swal.fire({title:'Riwayat Notifikasi',html:html,width:620,showConfirmButton:false,showCloseButton:true,didOpen:function(){
-        document.querySelectorAll('.notification-inbox-item').forEach(function(btn){btn.addEventListener('click',function(){
-          var id=this.getAttribute('data-notification-id');
-          callInbox('markUserNotificationRead',[currentUser.sessionToken,id],function(){refreshUserNotificationBadge();openNotificationInbox();});
-        });});
-      }});
+  var requestInFlight = null;
+  var notificationCache = null;
+  var notificationCacheAt = 0;
+  var notificationCacheToken = '';
+  var NOTIFICATION_CACHE_MS = 5000;
+
+  function callInbox(name, args, done, fail) {
+    var runner = TaiciBridge.run
+      .withSuccessHandler(done || function(){})
+      .withFailureHandler(function(error){
+        if (typeof fail === 'function') fail(error);
+        else console.warn('Permintaan notifikasi gagal:', error);
+      });
+    runner[name].apply(runner, args || []);
+  }
+
+  function fetchUserNotifications(onSuccess, onFailure, forceRefresh) {
+    if (!currentUser || !currentUser.sessionToken) return;
+    var token = currentUser.sessionToken;
+    if (notificationCacheToken !== token) {
+      notificationCache = null;
+      requestInFlight = null;
+      notificationCacheToken = token;
+    }
+
+    if (!forceRefresh && notificationCache && Date.now() - notificationCacheAt < NOTIFICATION_CACHE_MS) {
+      if (typeof onSuccess === 'function') onSuccess(notificationCache);
+      return;
+    }
+    if (requestInFlight) {
+      if (typeof onSuccess === 'function') requestInFlight.success.push(onSuccess);
+      if (typeof onFailure === 'function') requestInFlight.failure.push(onFailure);
+      return;
+    }
+
+    var request = { success: [], failure: [] };
+    requestInFlight = request;
+    if (typeof onSuccess === 'function') request.success.push(onSuccess);
+    if (typeof onFailure === 'function') request.failure.push(onFailure);
+
+    callInbox('getUserNotifications', [token, 50], function(result) {
+      if (requestInFlight === request) requestInFlight = null;
+      if (!currentUser || currentUser.sessionToken !== token) return;
+      if (result && result.success) {
+        notificationCache = result;
+        notificationCacheAt = Date.now();
+      } else {
+        notificationCache = null;
+      }
+      request.success.forEach(function(callback) { callback(result); });
+    }, function(error) {
+      if (requestInFlight === request) requestInFlight = null;
+      if (!currentUser || currentUser.sessionToken !== token) return;
+      notificationCache = null;
+      request.failure.forEach(function(callback) { callback(error); });
+    });
+  }
+
+  function updateNotificationBadge(result) {
+    if (!result || !result.success) return;
+    var badge = document.getElementById('notification-unread-badge');
+    if (!badge) return;
+    var unread = Number(result.unread || 0);
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.classList.toggle('hidden', unread < 1);
+  }
+
+  window.refreshUserNotificationBadge = function() {
+    if (!currentUser || !currentUser.sessionToken) return;
+    fetchUserNotifications(updateNotificationBadge, function(error) {
+      // Badge refresh runs in the background; don't interrupt the user for a transient timeout.
+      console.warn('Pembaruan badge notifikasi ditunda:', error);
     });
   };
-  setInterval(function(){if(currentUser)refreshUserNotificationBadge();},60000);
+
+  window.openNotificationInbox = function() {
+    if (!currentUser || !currentUser.sessionToken) return;
+    Swal.fire({
+      title: 'Memuat riwayat notifikasi',
+      text: 'Mohon tunggu sebentar…',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: function() { Swal.showLoading(); }
+    });
+
+    fetchUserNotifications(function(result) {
+      if (!result || !result.success) {
+        return Swal.fire('Gagal', result && result.message || 'Riwayat notifikasi tidak dapat dimuat.', 'error');
+      }
+      updateNotificationBadge(result);
+      var items = result.data || [];
+      var html = items.length
+        ? '<div class="space-y-2 text-left max-h-[60vh] overflow-y-auto">' + items.map(function(item) {
+            return '<button type="button" data-notification-id="' + escapeHtml(item.id) + '" class="notification-inbox-item w-full text-left border rounded-xl p-3 ' + (item.read ? 'bg-white border-slate-200' : 'bg-purple-50 border-purple-200') + '"><div class="flex items-start justify-between gap-3"><b class="text-sm text-slate-800">' + escapeHtml(item.title || item.type || 'Notifikasi') + '</b><span class="text-[10px] text-slate-400 shrink-0">' + escapeHtml(item.timestamp || '') + '</span></div><p class="text-xs text-slate-600 mt-1">' + escapeHtml(item.message || '') + '</p><span class="text-[9px] uppercase font-bold text-slate-400 mt-2 inline-block">' + (item.read ? 'Sudah dibaca' : 'Baru') + '</span></button>';
+          }).join('') + '</div>'
+        : '<p class="text-sm text-slate-500 py-8">Belum ada riwayat notifikasi.</p>';
+
+      Swal.fire({
+        title: 'Riwayat Notifikasi',
+        html: html,
+        width: 620,
+        showConfirmButton: false,
+        showCloseButton: true,
+        didOpen: function() {
+          document.querySelectorAll('.notification-inbox-item').forEach(function(button) {
+            button.addEventListener('click', function() {
+              var id = this.getAttribute('data-notification-id');
+              callInbox('markUserNotificationRead', [currentUser.sessionToken, id], function() {
+                notificationCache = null;
+                refreshUserNotificationBadge();
+                openNotificationInbox();
+              }, function(error) {
+                Swal.fire('Gagal memperbarui notifikasi', error && error.message || 'Silakan coba lagi.', 'error');
+              });
+            });
+          });
+        }
+      });
+    }, function(error) {
+      Swal.fire({
+        title: 'Gagal memuat notifikasi',
+        text: error && error.message ? error.message : 'Backend belum merespons. Periksa koneksi lalu coba lagi.',
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonText: 'Coba Lagi',
+        cancelButtonText: 'Tutup'
+      }).then(function(result) {
+        if (result.isConfirmed) window.openNotificationInbox();
+      });
+    });
+  };
+
+  setInterval(function() {
+    if (currentUser && document.visibilityState !== 'hidden') refreshUserNotificationBadge();
+  }, 60000);
 })();
 </script>
 <script>
