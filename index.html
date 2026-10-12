@@ -212,7 +212,7 @@
             <span id="user-display-role" class="inline-block bg-purple-900/60 text-purple-200 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">--</span>
           </div>
           <button onclick="openChangePasswordModal()" title="Ganti Password" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-key"></i></button>
-          <button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" class="relative h-9 rounded-full bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition"><i class="fa-solid fa-inbox mr-1"></i>Riwayat<span id="notification-unread-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] leading-4 px-1"></span></button>
+          <button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="relative h-9 w-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm shadow transition inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i><span id="notification-unread-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] leading-4 px-1"></span></button>
           <button type="button" id="push-notification-button" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden h-9 rounded-full bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label">Aktifkan Push</span></button>
           <button onclick="handleLogout()" title="Keluar" class="w-9 h-9 rounded-full bg-rose-500/80 hover:bg-rose-600 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-power-off"></i></button>
         </div>
@@ -824,7 +824,7 @@
       <header class="gradient-header text-white sticky top-0 z-20 shadow-lg">
         <div class="max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30"><i class="fa-solid fa-house-user"></i></div><div><h1 class="font-extrabold tracking-wide">TAICIMASTER FM</h1><p class="text-[11px] text-purple-200">Portal Wali Santri</p></div></div>
-          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button onclick="openNotificationInbox()" class="px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-inbox mr-1"></i>Notifikasi</button><button id="push-notification-button-portal" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label-portal">Aktifkan Push</span></button><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
+          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="h-9 w-9 rounded-xl bg-white/20 text-sm inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i></button><button id="push-notification-button-portal" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label-portal">Aktifkan Push</span></button><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
         </div>
       </header>
       <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -2785,7 +2785,25 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 (function(){
   function callInbox(name,args,done){var r=TaiciBridge.run.withSuccessHandler(done).withFailureHandler(function(e){Swal.fire('Gagal memuat notifikasi',e&&e.message?e.message:'Terjadi kesalahan sistem.','error');});r[name].apply(r,args||[]);}
   window.refreshUserNotificationBadge=function(){if(!currentUser||!currentUser.sessionToken)return;callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){if(!r||!r.success)return;var b=document.getElementById('notification-unread-badge'),n=Number(r.unread||0);if(!b)return;b.textContent=n>99?'99+':String(n);b.classList.toggle('hidden',n<1);});};
-  window.openNotificationInbox=function(){if(!currentUser||!currentUser.sessionToken)return;callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){if(!r||!r.success)return Swal.fire('Gagal',r&&r.message||'Riwayat notifikasi tidak dapat dimuat.','error');var items=r.data||[],html=items.length?'<div class="space-y-2 text-left max-h-[60vh] overflow-y-auto">'+items.map(function(x){return '<button type="button" data-notification-id="'+escapeHtml(x.id)+'" class="notification-inbox-item w-full text-left border rounded-xl p-3 '+(x.read?'bg-white border-slate-200':'bg-purple-50 border-purple-200')+'"><div class="flex items-start justify-between gap-3"><b class="text-sm text-slate-800">'+escapeHtml(x.title||x.type||'Notifikasi')+'</b><span class="text-[10px] text-slate-400 shrink-0">'+escapeHtml(x.timestamp||'')+'</span></div><p class="text-xs text-slate-600 mt-1">'+escapeHtml(x.message||'')+'</p><span class="text-[9px] uppercase font-bold text-slate-400 mt-2 inline-block">'+(x.read?'Sudah dibaca':'Baru')+'</span></button>';}).join('')+'</div>':'<p class="text-sm text-slate-500 py-8">Belum ada riwayat notifikasi.</p>';Swal.fire({title:'Riwayat Notifikasi',html:html,width:620,showConfirmButton:false,showCloseButton:true,didOpen:function(){document.querySelectorAll('.notification-inbox-item').forEach(function(btn){btn.addEventListener('click',function(){callInbox('markUserNotificationRead',[currentUser.sessionToken,this.getAttribute('data-notification-id')],function(){refreshUserNotificationBadge();openNotificationInbox();});});});}});});};
+  window.openNotificationInbox=function(){
+    if(!currentUser||!currentUser.sessionToken)return;
+    Swal.fire({title:'Memuat riwayat notifikasi',text:'Mohon tunggu sebentar…',allowOutsideClick:false,allowEscapeKey:false,didOpen:function(){Swal.showLoading();}});
+    callInbox('getUserNotifications',[currentUser.sessionToken,50],function(r){
+      if(!r||!r.success)return Swal.fire('Gagal',r&&r.message||'Riwayat notifikasi tidak dapat dimuat.','error');
+      var badge=document.getElementById('notification-unread-badge'),unread=Number(r.unread||0);
+      if(badge){badge.textContent=unread>99?'99+':String(unread);badge.classList.toggle('hidden',unread<1);}
+      var items=r.data||[];
+      var html=items.length?'<div class="space-y-2 text-left max-h-[60vh] overflow-y-auto">'+items.map(function(x){
+        return '<button type="button" data-notification-id="'+escapeHtml(x.id)+'" class="notification-inbox-item w-full text-left border rounded-xl p-3 '+(x.read?'bg-white border-slate-200':'bg-purple-50 border-purple-200')+'"><div class="flex items-start justify-between gap-3"><b class="text-sm text-slate-800">'+escapeHtml(x.title||x.type||'Notifikasi')+'</b><span class="text-[10px] text-slate-400 shrink-0">'+escapeHtml(x.timestamp||'')+'</span></div><p class="text-xs text-slate-600 mt-1">'+escapeHtml(x.message||'')+'</p><span class="text-[9px] uppercase font-bold text-slate-400 mt-2 inline-block">'+(x.read?'Sudah dibaca':'Baru')+'</span></button>';
+      }).join('')+'</div>':'<p class="text-sm text-slate-500 py-8">Belum ada riwayat notifikasi.</p>';
+      Swal.fire({title:'Riwayat Notifikasi',html:html,width:620,showConfirmButton:false,showCloseButton:true,didOpen:function(){
+        document.querySelectorAll('.notification-inbox-item').forEach(function(btn){btn.addEventListener('click',function(){
+          var id=this.getAttribute('data-notification-id');
+          callInbox('markUserNotificationRead',[currentUser.sessionToken,id],function(){refreshUserNotificationBadge();openNotificationInbox();});
+        });});
+      }});
+    });
+  };
   setInterval(function(){if(currentUser)refreshUserNotificationBadge();},60000);
 })();
 </script>
