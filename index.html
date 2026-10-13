@@ -211,10 +211,8 @@
             <p id="user-display-name" class="font-semibold text-sm">--</p>
             <span id="user-display-role" class="inline-block bg-purple-900/60 text-purple-200 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">--</span>
           </div>
-          <button onclick="openChangePasswordModal()" title="Ganti Password" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-key"></i></button>
           <button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="relative h-9 w-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm shadow transition inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i><span id="notification-unread-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] leading-4 px-1"></span></button>
-          <button type="button" id="push-notification-button" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden h-9 rounded-full bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label">Aktifkan Push</span></button>
-          <button onclick="handleLogout()" title="Keluar" class="w-9 h-9 rounded-full bg-rose-500/80 hover:bg-rose-600 text-white font-bold flex items-center justify-center text-sm shadow transition"><i class="fa-solid fa-power-off"></i></button>
+          <button type="button" id="settings-menu-button" onclick="openSettingsMenu()" title="Setting" aria-label="Setting akun" class="h-9 rounded-xl bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition inline-flex items-center justify-center gap-2"><i class="fa-solid fa-gear"></i><span class="hidden sm:inline">Setting</span></button>
         </div>
       </div>
     </header>
@@ -2948,9 +2946,29 @@ window.TaiciPush=(function(){
   return {
     syncIdentity:async function(user){visible(false);if(!user||!user.sessionToken)return;try{var d=await identity(user);if(!d||!d.success||!d.enabled||!d.appId)return;var os=await init(d.appId);await os.login(String(d.externalId));visible(true);update();}catch(e){console.warn('Sinkronisasi identitas push gagal:',e);if(e&&/App ID OneSignal berubah/.test(String(e.message||e)))Swal.fire('Konfigurasi Push Berubah','Muat ulang halaman, lalu masuk kembali agar perangkat tersambung ke App ID OneSignal yang terbaru.','info');}},
     logout:async function(){if(!client){initPromise=null;initAppId='';clientAppId='';visible(false);return;}try{await client.logout();}catch(e){}client=null;initPromise=null;initAppId='';clientAppId='';visible(false);},
-    enable:async function(){var u=typeof currentUser!=='undefined'?currentUser:null;if(!client||!u||!u.sessionToken){Swal.fire('Push belum siap','Pastikan OneSignal aktif, lalu masuk kembali.','info');return;}var apple=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(apple&&!installed){Swal.fire('Pasang aplikasi terlebih dahulu','Di iPhone/iPad, tambahkan situs ke Layar Utama, buka dari ikon aplikasi, lalu aktifkan notifikasi.','info');return;}try{await client.User.PushSubscription.optIn();var d=await identity(u);if(!d||!d.success||!d.externalId)throw new Error('Identitas akun push belum tersedia.');await client.login(String(d.externalId));var sub=client.User.PushSubscription,active=!!(sub.optedIn&&sub.id&&sub.token);update();Swal.fire(active?'Notifikasi aktif':'Subscription belum aktif',active?'Perangkat ini sudah memiliki subscription push dan identitas akun tersinkron.':'Izin browser saja belum cukup. Pastikan subscription ID dan token perangkat tersedia, lalu periksa izin notifikasi browser/perangkat.',active?'success':'warning');}catch(e){console.warn('Gagal mengaktifkan push:',e);Swal.fire('Gagal mengaktifkan','Periksa izin notifikasi browser/perangkat dan coba kembali. '+String(e&&e.message||''),'error');}}
+    getStatus:function(){var sub=null;try{sub=client&&client.User&&client.User.PushSubscription;}catch(e){}return {ready:!!client,active:!!(sub&&sub.optedIn&&sub.id&&sub.token)};},
+    enable:async function(){var u=typeof currentUser!=='undefined'?currentUser:null;if(!u||!u.sessionToken){Swal.fire('Login diperlukan','Silakan masuk kembali sebelum mengaktifkan notifikasi.','info');return;}var apple=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;if(apple&&!installed){Swal.fire('Pasang aplikasi terlebih dahulu','Di iPhone/iPad, tambahkan situs ke Layar Utama, buka dari ikon aplikasi, lalu aktifkan notifikasi.','info');return;}try{if(!client){var d0=await identity(u);if(!d0||!d0.success||!d0.enabled||!d0.appId||!d0.externalId)throw new Error((d0&&d0.message)||'Konfigurasi OneSignal belum aktif atau identitas akun push belum tersedia.');var os=await init(d0.appId);await os.login(String(d0.externalId));}await client.User.PushSubscription.optIn();var d=await identity(u);if(!d||!d.success||!d.externalId)throw new Error('Identitas akun push belum tersedia.');await client.login(String(d.externalId));var sub=client.User.PushSubscription,active=!!(sub.optedIn&&sub.id&&sub.token);update();Swal.fire(active?'Notifikasi aktif':'Subscription belum aktif',active?'Perangkat ini sudah memiliki subscription push dan identitas akun tersinkron.':'Izin browser saja belum cukup. Pastikan subscription ID dan token perangkat tersedia, lalu periksa izin notifikasi browser/perangkat.',active?'success':'warning');}catch(e){console.warn('Gagal mengaktifkan push:',e);Swal.fire('Gagal mengaktifkan','Periksa izin notifikasi browser/perangkat dan coba kembali. '+String(e&&e.message||''),'error');}}
   };
 })();
+function openSettingsMenu(){
+  if(!currentUser)return;
+  var active=false;
+  try{active=!!(window.TaiciPush&&window.TaiciPush.getStatus().active);}catch(e){}
+  Swal.fire({
+    title:'Setting Akun',
+    html:'<div class="space-y-3 text-left">'+
+      '<button type="button" id="settings-change-password" class="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-purple-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700"><i class="fa-solid fa-key"></i></span><span><b class="block text-sm text-slate-800">Ganti Password</b><small class="text-xs text-slate-500">Ubah kata sandi akun</small></span></button>'+
+      '<button type="button" id="settings-push-notifications" class="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-purple-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><i class="fa-solid fa-bell"></i></span><span><b id="settings-push-title" class="block text-sm text-slate-800">'+(active?'Notifikasi Aktif':'Aktifkan Notifikasi')+'</b><small class="text-xs text-slate-500">Notifikasi perangkat ini</small></span></button>'+
+      '<button type="button" id="settings-logout" class="w-full flex items-center gap-3 rounded-xl border border-rose-200 bg-white px-4 py-3 text-left hover:bg-rose-50"><span class="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-700"><i class="fa-solid fa-power-off"></i></span><span><b class="block text-sm text-slate-800">Keluar</b><small class="text-xs text-slate-500">Keluar dari akun ini</small></span></button>'+
+      '</div>',
+    showConfirmButton:false,showCloseButton:true,focusConfirm:false,
+    didOpen:function(){
+      document.getElementById('settings-change-password').onclick=function(){Swal.close();openChangePasswordModal();};
+      document.getElementById('settings-push-notifications').onclick=function(){Swal.close();enablePushNotifications();};
+      document.getElementById('settings-logout').onclick=function(){Swal.close();handleLogout();};
+    }
+  });
+}
 function enablePushNotifications(){window.TaiciPush.enable();}
 function syncPushIdentity(user){if(window.TaiciPush)window.TaiciPush.syncIdentity(user);}
 </script>
