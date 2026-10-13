@@ -2964,12 +2964,12 @@ function openSettingsMenu(){
     showConfirmButton:false,showCloseButton:true,focusConfirm:false,
     didOpen:function(){
       document.getElementById('settings-change-password').onclick=function(){Swal.close();openChangePasswordModal();};
-      document.getElementById('settings-push-notifications').onclick=function(){Swal.close();enablePushNotifications();};
+      document.getElementById('settings-push-notifications').onclick=function(){var b=this;if(b.disabled)return;b.disabled=true;b.classList.add('opacity-60');var t=document.getElementById('settings-push-title');if(t)t.textContent='Memproses notifikasi…';Promise.resolve(enablePushNotifications()).catch(function(e){console.error('Klik aktivasi notifikasi gagal:',e);Swal.fire('Aktivasi gagal',String(e&&e.message||e),'error');}).finally(function(){if(document.body.contains(b)){b.disabled=false;b.classList.remove('opacity-60');var title=document.getElementById('settings-push-title');if(title)title.textContent=(window.TaiciPush&&window.TaiciPush.getStatus().active)?'Notifikasi Aktif':'Aktifkan Notifikasi';}});};
       document.getElementById('settings-logout').onclick=function(){Swal.close();handleLogout();};
     }
   });
 }
-function enablePushNotifications(){window.TaiciPush.enable();}
+function enablePushNotifications(){if(!window.TaiciPush||typeof window.TaiciPush.enable!=='function'){Swal.fire('Notifikasi belum siap','Modul notifikasi belum termuat. Muat ulang aplikasi dan coba kembali.','error');return Promise.resolve(false);}return window.TaiciPush.enable();}
 function syncPushIdentity(user){if(window.TaiciPush)window.TaiciPush.syncIdentity(user);}
 </script>
 </body>
