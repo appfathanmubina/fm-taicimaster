@@ -116,6 +116,12 @@
     }
 
     const id = String(++serial);
+    // Login dan pemulihan sesi membutuhkan waktu lebih lama pada cold start Apps Script.
+    // Jangan retry otomatis karena autentikasi dapat berhasil di server meski respons terlambat.
+    const timeoutMs = fn === 'authenticateUser' ? 120000
+      : (fn === 'restoreRememberedSession' || fn === 'getSystemConfig') ? 90000
+      : (fn === 'getUserNotifications' || fn === 'markUserNotificationRead') ? 90000
+      : 60000;
     const item = {
       id: id,
       fn: fn,
@@ -126,8 +132,8 @@
       timer: setTimeout(function () {
         if (!pending.has(id)) return;
         pending.delete(id);
-        item.fail(new Error('Waktu tunggu backend habis.'));
-      }, (fn === 'getUserNotifications' || fn === 'markUserNotificationRead') ? 90000 : 45000)
+        item.fail(new Error('Waktu tunggu backend habis setelah ' + Math.round(timeoutMs / 1000) + ' detik. Server mungkin sedang sibuk; periksa koneksi sebelum mencoba login kembali.'));
+      }, timeoutMs)
     };
     pending.set(id, item);
     sendPending(item);
