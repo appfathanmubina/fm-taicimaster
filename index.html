@@ -2165,6 +2165,20 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
       const bioProgress = document.getElementById('bio-wali-progress');
       if (bioProgress) bioProgress.classList.toggle('hidden', r !== 'walikelas' && r !== 'superadmin');
       if (r === 'walikelas' || r === 'superadmin') setTimeout(loadBiodataWaliProgress, 50);
+
+      // Supervisor: tampilkan seluruh modul operasional pada sidebar Web.
+      // Ini hanya mengatur visibilitas UI; otorisasi data tetap diperiksa backend.
+      if (r === 'supervisor') {
+        ['side-nav-dashboard','side-nav-prestasi','side-nav-catatanwk','side-nav-rekapan',
+         'side-nav-pelanggaran','side-nav-biodata','side-nav-perizinan','side-nav-kesehatan'].forEach(function(id) {
+          const item = document.getElementById(id);
+          if (item) {
+            item.classList.remove('hidden');
+            item.hidden = false;
+            item.style.removeProperty('display');
+          }
+        });
+      }
     }
     /**
      * Mobile Bottom Navigation
