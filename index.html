@@ -1305,7 +1305,7 @@
       // 1. Cek Navigasi Prestasi
       const pNav = document.getElementById('nav-prestasi');
       const sidePNav = document.getElementById('side-nav-prestasi');
-      if (r === 'superadmin' || (r !== 'supervisor' && (!f.prestasi || f.prestasi.enabled !== false) && (!f.prestasi?.roles || f.prestasi.roles.includes(r)))) {
+      if (r === 'superadmin' || r === 'supervisor' || (!f.prestasi || f.prestasi.enabled !== false) && (!f.prestasi?.roles || f.prestasi.roles.includes(r))) {
         if(pNav) pNav.classList.remove('hidden');
         if(sidePNav) sidePNav.classList.remove('hidden');
       } else {
@@ -1323,7 +1323,7 @@
       // 2. Cek Navigasi Pelanggaran
       const lNav = document.getElementById('nav-pelanggaran');
       const sideLNav = document.getElementById('side-nav-pelanggaran');
-      if (r !== 'walikelas' && (r === 'superadmin' || (r !== 'supervisor' && (!f.pelanggaran || f.pelanggaran.enabled !== false) && (!f.pelanggaran?.roles || f.pelanggaran.roles.includes(r))))) {
+      if (r !== 'walikelas' && (r === 'superadmin' || r === 'supervisor' || ((!f.pelanggaran || f.pelanggaran.enabled !== false) && (!f.pelanggaran?.roles || f.pelanggaran.roles.includes(r))))) {
         if(lNav) lNav.classList.remove('hidden');
         if(sideLNav) sideLNav.classList.remove('hidden');
       } else {
@@ -1332,7 +1332,7 @@
       }
 
       // 3. WALI KELAS DASHBOARD & CATATAN WALI KELAS NAV
-      if (r === 'walikelas' || r === 'superadmin') {
+      if (r === 'walikelas' || r === 'superadmin' || r === 'supervisor') {
         document.getElementById('side-nav-catatanwk').classList.remove('hidden');
         if (r === 'walikelas') {
           document.getElementById('welcome-title').innerText = `Assalamu'alaikum, Ustadz / Ustadzah ${currentUser.name}!`;
@@ -2140,7 +2140,7 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
      * ------------------------------------------------------------------------ */
     function applyExtendedPermissions() {
       const r = currentUser.role;
-      const viewRoles = ['admin_prestasi','admin_pelanggaran','admin_perizinan','admin_kesehatan','walikelas','superadmin'];
+      const viewRoles = ['admin_prestasi','admin_pelanggaran','admin_perizinan','admin_kesehatan','walikelas','supervisor','superadmin'];
       const b = document.getElementById('side-nav-biodata');
       if (b) b.classList.toggle('hidden', viewRoles.indexOf(r) < 0);
 
