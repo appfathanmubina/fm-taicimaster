@@ -624,6 +624,7 @@ function doGet(e) {
   // This does not alter the normal Apps Script HTML entry point.
   if (e && e.parameter && e.parameter.manifest === '1') {
     var manifest = {
+      id: './',
       name: CONFIG.APP_NAME,
       short_name: 'TAICIMASTER',
       description: 'Sistem Perkembangan Santri - TAICIMASTER FM',
