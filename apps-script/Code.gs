@@ -1117,6 +1117,7 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
   if (!auth.ok) return auth.response;
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
+  var tempFile = null;
   try {
     var modeU = String(mode || 'ANAK').toUpperCase();
     var title, data, filterLabel = String(kelasFilter || 'ALL');
@@ -1145,86 +1146,62 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     var stamp = Utilities.formatDate(now, tz, 'yyyyMMdd_HHmmss');
     var safeFilter = String((santriName || filterLabel || 'ALL')).replace(/[^a-zA-Z0-9_-]+/g,'_').substring(0,60);
     var fileName = 'TAICIMASTER_' + modeU + '_' + safeFilter + '_' + stamp;
-    var html = buildRekapPdfHtml_(data, modeU, title, filterLabel, santriName, now, tz);
-    // Konversi HTML menjadi PDF langsung di memori Apps Script.
-    // Tidak membuat Google Docs, tidak membuat file PDF di Drive, dan tidak memakai folder laporan.
-    var pdfBlob = HtmlService.createHtmlOutput(html).getAs(MimeType.PDF).setName(fileName + '.pdf');
+
+    // Google Docs dipakai hanya sebagai dokumen sementara agar format laporan tetap konsisten.
+    // Tidak membuat folder laporan dan tidak menyimpan PDF hasil ekspor ke Drive.
+    var doc = DocumentApp.create(fileName);
+    tempFile = DriveApp.getFileById(doc.getId());
+    var body = doc.getBody();
+    body.setMarginTop(36).setMarginBottom(36).setMarginLeft(42).setMarginRight(42);
+    appendReportBranding_(body, doc);
+    var titleTable = body.appendTable([[CONFIG.APP_NAME + '  •  LAPORAN RESMI']]);
+    titleTable.setBorderWidth(0);
+    var titleCell = titleTable.getRow(0).getCell(0);
+    titleCell.setBackgroundColor('#6B21A8');
+    var titlePara = titleCell.getChild(0).asParagraph();
+    titlePara.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    titlePara.setForegroundColor('#FFFFFF').setBold(true).setFontSize(14);
+
+    var heading = body.appendParagraph(title);
+    heading.setHeading(DocumentApp.ParagraphHeading.HEADING1);
+    heading.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    heading.setForegroundColor('#581C87').setBold(true);
+
+    var meta = body.appendParagraph('Dicetak: ' + Utilities.formatDate(now, tz, 'dd MMMM yyyy, HH:mm:ss') +
+      '  •  Mode: ' + modeU +
+      (filterLabel && filterLabel.toUpperCase() !== 'ALL' ? '  •  Kelas: ' + filterLabel : ''));
+    meta.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    meta.setForegroundColor('#64748B').setFontSize(8);
+    appendReportSummary_(body, data, modeU, filterLabel, santriName, tz);
+
+    if (modeU === 'KELAS') {
+      data.forEach(function(x, idx){ appendClassSection_(body, x, idx + 1); });
+    } else {
+      data.forEach(function(x, idx){ appendStudentSection_(body, x, idx + 1); });
+    }
+    var footer = doc.getFooter() || doc.addFooter();
+    footer.clear();
+    footer.appendParagraph(CONFIG.APP_NAME + ' • Laporan resmi • ' + Utilities.formatDate(now, tz, 'dd/MM/yyyy HH:mm:ss'))
+      .setAlignment(DocumentApp.HorizontalAlignment.CENTER).setForegroundColor('#64748B').setFontSize(8);
+    body.appendParagraph('Dokumen ini dihasilkan oleh ' + CONFIG.APP_NAME + ' dan diunduh langsung oleh pengguna.')
+      .setForegroundColor('#64748B').setFontSize(8);
+    doc.saveAndClose();
+
+    var pdfBlob = tempFile.getAs(MimeType.PDF).setName(fileName + '.pdf');
     var pdfBase64 = Utilities.base64Encode(pdfBlob.getBytes());
-    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', fileName + '.pdf|' + modeU + '|DIRECT_DOWNLOAD_NO_DRIVE');
+    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', fileName + '.pdf|' + modeU + '|TEMP_DOC_DIRECT_DOWNLOAD');
     return {success:true,name:fileName + '.pdf',mimeType:'application/pdf',base64:pdfBase64,mode:modeU};
   } catch (e) {
     return {success:false,message:'Pembuatan PDF gagal: ' + e.toString()};
   } finally {
+    // Dokumen Google sementara selalu dibersihkan, termasuk saat konversi gagal.
+    if (tempFile) {
+      try { tempFile.setTrashed(true); } catch (cleanupError) {
+        console.error('Gagal membersihkan dokumen PDF sementara: ' + cleanupError);
+      }
+    }
     try { lock.releaseLock(); } catch (ignore) {}
   }
-}
-
-function buildRekapPdfHtml_(data, modeU, title, filterLabel, santriName, printedAt, tz) {
-  function esc(value) {
-    return String(value == null ? '' : value).replace(/[&<>"]/g, function(ch) {
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];
-    }).replace(/'/g, '&#39;');
-  }
-  function arr(value) { return Array.isArray(value) ? value : []; }
-  function detailTable(label, items, tone) {
-    items = arr(items);
-    var rows = items.length ? items.map(function(d) {
-      var detail = String(d.judul || d.kategori || d.jenis || '-');
-      var extra = String(d.detail || d.catatan || d.deskripsi || '');
-      if (extra) detail += ' — ' + extra;
-      if (d.tindakLanjut) detail += ' | Tindak lanjut: ' + d.tindakLanjut;
-      return '<tr><td>' + esc(d.tanggal || '-') + '</td><td>' + esc(detail) + '</td><td>' + esc(d.status || '-') + '</td></tr>';
-    }).join('') : '<tr><td colspan="3" class="empty">Belum ada data.</td></tr>';
-    return '<h3 class="' + tone + '">' + esc(label) + '</h3><table class="detail"><thead><tr><th>Tanggal</th><th>Rincian</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
-  function metrics(x) {
-    return '<table class="metrics"><thead><tr><th>Prestasi</th><th>Disiplin</th><th>Catatan</th><th>Izin</th><th>Kesehatan</th></tr></thead><tbody><tr>' +
-      [arr(x.prestasi).length,arr(x.pelanggaran).length,arr(x.catatanWali).length,arr(x.perizinan).length,arr(x.kesehatan).length].map(function(n){return '<td>' + n + '</td>';}).join('') +
-      '</tr></tbody></table>';
-  }
-  function sections(x, index) {
-    var heading = modeU === 'KELAS' ? 'Kelas ' + (x.kelas || '-') : (x.nama || 'Santri');
-    var sub = modeU === 'KELAS' ? 'Jumlah Santri: ' + (x.santri || 0) : 'Kelas ' + (x.kelas || '-');
-    return '<section class="record"><h2>' + (index + 1) + '. ' + esc(heading) + '</h2><p class="sub">' + esc(sub) + '</p>' +
-      metrics(x) +
-      detailTable('Prestasi',x.prestasi,'green') +
-      detailTable('Pelanggaran / Disiplin',x.pelanggaran,'red') +
-      detailTable('Catatan Wali Kelas',x.catatanWali,'purple') +
-      detailTable('Perizinan',x.perizinan,'blue') +
-      detailTable('Kesehatan',x.kesehatan,'pink') + '</section>';
-  }
-  var totalSantri = 0, counts = [0,0,0,0,0];
-  arr(data).forEach(function(x) {
-    totalSantri += modeU === 'KELAS' ? Number(x.santri || 0) : 1;
-    counts[0] += arr(x.prestasi).length;
-    counts[1] += arr(x.pelanggaran).length;
-    counts[2] += arr(x.catatanWali).length;
-    counts[3] += arr(x.perizinan).length;
-    counts[4] += arr(x.kesehatan).length;
-  });
-  var logoHtml = '';
-  try {
-    var logo = getReportLogoBlob_();
-    if (logo) logoHtml = '<img class="logo" src="data:' + logo.getContentType() + ';base64,' + Utilities.base64Encode(logo.getBytes()) + '">';
-  } catch (ignore) {}
-  var printed = Utilities.formatDate(printedAt, tz, 'dd MMMM yyyy, HH:mm:ss');
-  var filter = filterLabel && filterLabel.toUpperCase() !== 'ALL' ? '<span>Filter kelas: ' + esc(filterLabel) + '</span>' : '';
-  var person = modeU === 'SANTRI' && data.length ? '<span>Santri: ' + esc(data[0].nama) + ' | Kelas: ' + esc(data[0].kelas) + '</span>' : '';
-  return '<!doctype html><html><head><meta charset="utf-8"><style>' +
-    '@page{size:A4;margin:16mm 13mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#1e293b;font-size:9pt;line-height:1.4}' +
-    '.brand{text-align:center;border-bottom:3px solid #6b21a8;padding-bottom:10px;margin-bottom:16px}.logo{width:54px;height:auto;display:block;margin:0 auto 6px}.brand-name{font-size:13pt;font-weight:bold;color:#6b21a8}.brand-tag{font-size:8pt;color:#64748b;letter-spacing:1px}' +
-    'h1{text-align:center;color:#581c87;font-size:18pt;margin:10px 0 4px}.meta{text-align:center;color:#64748b;font-size:8pt;margin:4px 0 16px}.meta span{display:inline-block;margin:0 6px}' +
-    'h2{color:#581c87;font-size:12pt;border-bottom:1px solid #ddd6fe;padding-bottom:5px;margin:18px 0 4px}.sub{color:#64748b;font-size:8pt;margin:0 0 8px}' +
-    '.summary{width:100%;border-collapse:collapse;margin:8px 0 14px}.summary th{background:#6b21a8;color:#fff}.summary td{background:#f5f3ff;font-size:12pt;font-weight:bold;text-align:center}' +
-    'table{width:100%;border-collapse:collapse;table-layout:fixed;margin:5px 0 10px}th,td{border:1px solid #e2e8f0;padding:5px 6px;vertical-align:top;overflow-wrap:anywhere}th{font-weight:bold;text-align:left;font-size:8pt}' +
-    '.metrics th{background:#f1f5f9;color:#475569}.metrics td{text-align:center;font-size:10pt;font-weight:bold}.detail th{background:#f5f3ff;color:#6b21a8}.detail td{font-size:8pt}.detail th:first-child,.detail td:first-child{width:18%}.detail th:last-child,.detail td:last-child{width:18%}' +
-    'h3{font-size:9pt;margin:12px 0 3px}.green{color:#047857}.red{color:#be123c}.purple{color:#7e22ce}.blue{color:#0369a1}.pink{color:#be185d}.empty{color:#94a3b8;font-style:italic;text-align:center}' +
-    '.record{page-break-inside:auto}.record h2{page-break-after:avoid}.detail tr{page-break-inside:avoid}.footer{margin-top:18px;text-align:center;color:#64748b;font-size:7pt;border-top:1px solid #e2e8f0;padding-top:8px}' +
-    '</style></head><body><header class="brand">' + logoHtml + '<div class="brand-name">' + esc(CONFIG.APP_NAME) + '</div><div class="brand-tag">LAPORAN RESMI</div></header>' +
-    '<h1>' + esc(title) + '</h1><div class="meta"><span>Dicetak: ' + esc(printed) + '</span>' + filter + person + '</div>' +
-    '<h2>Ringkasan Data</h2><table class="summary"><thead><tr><th>Santri</th><th>Prestasi</th><th>Disiplin</th><th>Catatan Wali</th><th>Izin</th><th>Kesehatan</th></tr></thead><tbody><tr><td>' + totalSantri + '</td>' + counts.map(function(n){return '<td>' + n + '</td>';}).join('') + '</tr></tbody></table>' +
-    arr(data).map(sections).join('') +
-    '<div class="footer">' + esc(CONFIG.APP_NAME) + ' • Laporan resmi • ' + esc(Utilities.formatDate(printedAt,tz,'dd/MM/yyyy HH:mm:ss')) + '</div></body></html>';
 }
 
 function reportCellStyle_(cell, bg, fg, bold) {
