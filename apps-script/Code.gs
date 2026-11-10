@@ -1,5 +1,3 @@
-
-
 /* ===== BEGIN Auth.gs ===== */
 /** TAICIMASTER FM — Stage 2 Security FINAL v2.0 — Authentication */
 function authenticateUser(emailOrUsername, password, rememberMe) {
