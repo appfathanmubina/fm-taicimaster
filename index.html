@@ -84,8 +84,8 @@
       .tm-mobile-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
     }
 
-    /* Pull-to-refresh browser gesture dinonaktifkan; scroll konten tetap aktif. */
-    html, body { overscroll-behavior-y: none; }
+    /* Cegah pull-to-refresh saat mencapai batas atas, tanpa mematikan scroll normal. */
+    html { overscroll-behavior-y: contain; }
     #wali-portal-screen { overscroll-behavior-y: contain; }
     
     /* Stage 11.25 — Mobile UX hardening */
