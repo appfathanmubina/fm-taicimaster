@@ -2154,10 +2154,28 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
       const kelas = document.getElementById('rekap-class-filter')?.value || 'ALL';
       let santri = '';
       if (mode === 'SANTRI') santri = document.getElementById('rekap-search')?.value || '';
-      Swal.fire({title:'Menyiapkan PDF...',text:'File akan disimpan ke Google Drive laporan.',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+      Swal.fire({title:'Menyiapkan PDF...',text:'PDF sedang disiapkan untuk diunduh.',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
       google.script.run.withSuccessHandler(res=>{
-        if(!res.success){Swal.fire('Gagal',res.message||'Pembuatan PDF gagal','error');return;}
-        Swal.fire({icon:'success',title:'PDF berhasil dibuat',html:`<p class=\"text-sm\">${escapeHtml(res.name)}</p><a href=\"${res.url}\" target=\"_blank\" class=\"inline-block mt-3 bg-amethyst-700 text-white px-4 py-2 rounded-lg font-bold\">Buka PDF di Google Drive</a>`});
+        if(!res || !res.success){Swal.fire('Gagal',res&&res.message||'Pembuatan PDF gagal','error');return;}
+        try {
+          const binary = atob(res.base64 || '');
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], {type:res.mimeType || 'application/pdf'});
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = res.name || 'TAICIMASTER_Rekapan.pdf';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),1500);
+          Swal.fire({icon:'success',title:'PDF berhasil diunduh',text:res.name || 'File PDF telah dikirim ke unduhan perangkat.'});
+        } catch (err) {
+          Swal.fire('Gagal', 'PDF berhasil dibuat tetapi tidak dapat diunduh: ' + (err&&err.message || err), 'error');
+        }
+      }).withFailureHandler(err=>{
+        Swal.fire('Gagal', (err&&err.message) || 'Koneksi ke server bermasalah saat membuat PDF.', 'error');
       }).generateRekapPdf(currentUser.sessionToken,mode,kelas,santri);
     }
 
