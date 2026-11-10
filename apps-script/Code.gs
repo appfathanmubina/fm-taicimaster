@@ -1118,6 +1118,7 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   var tempFile = null;
+  var tempDocId = null;
   try {
     var modeU = String(mode || 'ANAK').toUpperCase();
     var title, data, filterLabel = String(kelasFilter || 'ALL');
@@ -1150,7 +1151,8 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     // Google Docs dipakai hanya sebagai dokumen sementara agar format laporan tetap konsisten.
     // Tidak membuat folder laporan dan tidak menyimpan PDF hasil ekspor ke Drive.
     var doc = DocumentApp.create(fileName);
-    tempFile = DriveApp.getFileById(doc.getId());
+    tempDocId = doc.getId();
+    tempFile = DriveApp.getFileById(tempDocId);
     var body = doc.getBody();
     body.setMarginTop(36).setMarginBottom(36).setMarginLeft(42).setMarginRight(42);
     appendReportBranding_(body, doc);
@@ -1195,8 +1197,10 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     return {success:false,message:'Pembuatan PDF gagal: ' + e.toString()};
   } finally {
     // Dokumen Google sementara selalu dibersihkan, termasuk saat konversi gagal.
-    if (tempFile) {
-      try { tempFile.setTrashed(true); } catch (cleanupError) {
+    if (tempDocId) {
+      try {
+        (tempFile || DriveApp.getFileById(tempDocId)).setTrashed(true);
+      } catch (cleanupError) {
         console.error('Gagal membersihkan dokumen PDF sementara: ' + cleanupError);
       }
     }
