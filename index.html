@@ -215,7 +215,7 @@
             <p id="user-display-name" class="font-semibold text-sm">--</p>
             <span id="user-display-role" class="inline-block bg-purple-900/60 text-purple-200 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">--</span>
           </div>
-          <button type="button" onclick="refreshActivePage()" title="Refresh halaman" aria-label="Refresh halaman" class="h-9 w-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm shadow transition inline-flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>
+          <button type="button" onclick="refreshActivePage(this)" title="Refresh halaman" aria-label="Refresh halaman" class="h-9 w-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm shadow transition inline-flex items-center justify-center"><i class="fa-solid fa-rotate"></i></button>
           <button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="relative h-9 w-9 rounded-full bg-white/20 hover:bg-white/30 text-white text-sm shadow transition inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i><span id="notification-unread-badge" class="hidden absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] leading-4 px-1"></span></button>
           <button type="button" id="settings-menu-button" onclick="openSettingsMenu()" title="Setting" aria-label="Setting akun" class="h-9 rounded-xl bg-white/20 hover:bg-white/30 px-3 text-white text-xs font-bold shadow transition inline-flex items-center justify-center gap-2"><i class="fa-solid fa-gear"></i><span class="hidden sm:inline">Setting</span></button>
         </div>
@@ -827,7 +827,7 @@
       <header class="gradient-header text-white sticky top-0 z-20 shadow-lg">
         <div class="max-w-6xl mx-auto px-4 py-3.5 flex justify-between items-center">
           <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30"><i class="fa-solid fa-house-user"></i></div><div><h1 class="font-extrabold tracking-wide">TAICIMASTER FM</h1><p class="text-[11px] text-purple-200">Portal Wali Santri</p></div></div>
-          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button type="button" onclick="refreshActivePage()" title="Refresh halaman" aria-label="Refresh halaman" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 text-sm inline-flex items-center justify-center transition"><i class="fa-solid fa-rotate"></i></button><button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="h-9 w-9 rounded-xl bg-white/20 text-sm inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i></button><button id="push-notification-button-portal" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label-portal">Aktifkan Push</span></button><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
+          <div class="flex items-center gap-2"><span id="wali-portal-user" class="hidden sm:inline text-xs font-semibold"></span><button type="button" onclick="refreshActivePage(this)" title="Refresh halaman" aria-label="Refresh halaman" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 text-sm inline-flex items-center justify-center transition"><i class="fa-solid fa-rotate"></i></button><button type="button" onclick="openNotificationInbox()" title="Riwayat notifikasi" aria-label="Riwayat notifikasi" class="h-9 w-9 rounded-xl bg-white/20 text-sm inline-flex items-center justify-center"><i class="fa-solid fa-bell"></i></button><button id="push-notification-button-portal" onclick="enablePushNotifications()" title="Aktifkan notifikasi perangkat" class="hidden px-3 py-2 rounded-xl bg-white/20 text-xs font-bold"><i class="fa-solid fa-bell mr-1"></i><span id="push-notification-label-portal">Aktifkan Push</span></button><button onclick="handleLogout()" class="px-3 py-2 rounded-xl bg-rose-500/90 text-xs font-bold"><i class="fa-solid fa-power-off mr-1"></i>Keluar</button></div>
         </div>
       </header>
       <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
@@ -1591,31 +1591,40 @@
 
     // Refresh hanya menyinkronkan ulang modul aktif; tidak memuat ulang dokumen
     // sehingga sesi login dan posisi pengguna tetap terjaga.
-    function refreshActivePage() {
+    function refreshActivePage(triggerButton) {
+      const button = triggerButton || document.querySelector('button[onclick^="refreshActivePage"]');
+      const icon = button ? button.querySelector('i') : null;
+      const stopIndicator = () => {
+        if (button) button.disabled = false;
+        if (icon) icon.classList.remove('fa-spin');
+      };
+      if (button) button.disabled = true;
+      if (icon) icon.classList.add('fa-spin');
+
       const waliPortal = document.getElementById('wali-portal-screen');
       if (waliPortal && !waliPortal.classList.contains('hidden')) {
         if (typeof waliPortalRefresh === 'function') {
-          waliPortalRefresh();
+          try {
+            waliPortalRefresh();
+            setTimeout(stopIndicator, 1200);
+          } catch (error) {
+            stopIndicator();
+            console.error('Refresh Portal Wali:', error);
+            Swal.fire('Refresh gagal', error && error.message ? error.message : 'Portal tidak dapat diperbarui.', 'error');
+          }
           return;
         }
       }
       if (!currentUser || !currentUser.sessionToken) {
+        stopIndicator();
         Swal.fire('Sesi Tidak Tersedia', 'Silakan login kembali untuk memuat data.', 'warning');
         return;
       }
-      const button = document.querySelector('button[onclick="refreshActivePage()"]');
-      const icon = button ? button.querySelector('i') : null;
-      if (button) button.disabled = true;
-      if (icon) icon.classList.add('fa-spin');
       try {
         switchTab(currentActiveTab || 'dashboard', true);
-        setTimeout(() => {
-          if (button) button.disabled = false;
-          if (icon) icon.classList.remove('fa-spin');
-        }, 1200);
+        setTimeout(stopIndicator, 1200);
       } catch (error) {
-        if (button) button.disabled = false;
-        if (icon) icon.classList.remove('fa-spin');
+        stopIndicator();
         console.error('Refresh halaman:', error);
         Swal.fire('Refresh gagal', error && error.message ? error.message : 'Halaman tidak dapat diperbarui.', 'error');
       }
