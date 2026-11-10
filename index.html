@@ -123,6 +123,20 @@
       border-radius: 12px;
       margin: 0 3px;
     }
+    /* Desktop workspace: gunakan lebar layar dan sidebar yang dapat diciutkan/disembunyikan. */
+    @media (min-width: 768px) {
+      #app-screen > header.gradient-header > div { width: 100%; max-width: none; padding-left: 1.5rem; padding-right: 1.5rem; }
+      #app-content-shell { width: 100%; max-width: none; margin-left: 0; margin-right: 0; padding-left: 1.5rem; padding-right: 1.5rem; align-items: flex-start; }
+      #desktop-sidebar { width: 16rem; flex: 0 0 16rem; transition: width .22s ease, flex-basis .22s ease, opacity .18s ease; }
+      #desktop-sidebar > .glass-card { min-height: calc(100dvh - 7rem); }
+      #app-screen.tm-sidebar-collapsed #desktop-sidebar { width: 4.75rem; flex-basis: 4.75rem; }
+      #app-screen.tm-sidebar-collapsed #desktop-sidebar > .glass-card { padding: .65rem; }
+      #app-screen.tm-sidebar-collapsed #sidebar-nav button { justify-content: center; gap: 0; padding-left: .5rem; padding-right: .5rem; font-size: 0; }
+      #app-screen.tm-sidebar-collapsed #sidebar-nav button i { width: auto; font-size: 1.05rem; }
+      #app-screen.tm-sidebar-collapsed #desktop-sidebar .tm-sidebar-heading { display: none; }
+      #app-screen.tm-sidebar-hidden #desktop-sidebar { display: none; }
+      #app-content-shell > main { min-width: 0; }
+    }
     .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; inset: 0; background-color: #cbd5e1; transition: .3s; border-radius: 24px; }
@@ -192,6 +206,9 @@
     <header class="gradient-header text-white sticky top-0 z-40 shadow-lg">
       <div class="max-w-7xl mx-auto px-4 py-3.5 flex justify-between items-center">
         <div class="flex items-center space-x-3">
+          <button type="button" id="desktop-sidebar-toggle" onclick="toggleDesktopSidebar()" title="Ciutkan menu samping" aria-label="Ciutkan menu samping" aria-expanded="true" class="hidden md:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 transition">
+            <i id="desktop-sidebar-toggle-icon" class="fa-solid fa-angles-left"></i>
+          </button>
           <img src="./assets/taicimaster-logo.svg" alt="" class="w-10 h-10 rounded-xl object-contain border border-white/30 bg-white p-0.5">
           <div>
             <h1 class="font-bold text-lg leading-tight tracking-wide">TAICIMASTER</h1>
@@ -232,12 +249,12 @@
       </div>
     </div>
 
-    <div id="app-content-shell" class="max-w-7xl mx-auto px-4 py-6 md:flex md:gap-6">
+    <div id="app-content-shell" class="w-full px-4 py-6 md:flex md:gap-6">
       
       <!-- DESKTOP SIDEBAR -->
-      <aside class="hidden md:block w-64 flex-shrink-0">
+      <aside id="desktop-sidebar" class="hidden md:block w-64 flex-shrink-0">
         <div class="glass-card rounded-2xl p-4 shadow-sm sticky top-24">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-3">Menu Utama</p>
+          <p class="tm-sidebar-heading text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-3">Menu Utama</p>
           <nav id="sidebar-nav" class="space-y-1">
             <button onclick="switchTab('dashboard')" id="side-nav-dashboard" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-purple-50 hover:text-amethyst-700 transition nav-active">
               <i class="fa-solid fa-chart-pie text-base w-5"></i> Dashboard
@@ -2939,7 +2956,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/fm-taicimaster/service-worker.js?v=18', { scope: '/fm-taicimaster/' })
+      navigator.serviceWorker.register('/fm-taicimaster/service-worker.js?v=21', { scope: '/fm-taicimaster/' })
         .catch(function (error) { console.warn('PWA offline shell tidak terdaftar:', error); });
     });
   }
@@ -3125,6 +3142,52 @@ function openSettingsMenu(){
 }
 function enablePushNotifications(){if(!window.TaiciPush||typeof window.TaiciPush.enable!=='function'){Swal.fire('Notifikasi belum siap','Modul notifikasi belum termuat. Muat ulang aplikasi dan coba kembali.','error');return Promise.resolve(false);}return window.TaiciPush.enable();}
 function syncPushIdentity(user){if(window.TaiciPush)window.TaiciPush.syncIdentity(user);}
+</script>
+<script>
+/* Sidebar desktop: expanded -> compact icons -> hidden -> expanded. */
+function toggleDesktopSidebar() {
+  var app = document.getElementById('app-screen');
+  var button = document.getElementById('desktop-sidebar-toggle');
+  var icon = document.getElementById('desktop-sidebar-toggle-icon');
+  if (!app || !button) return;
+  var state = app.classList.contains('tm-sidebar-hidden') ? 'hidden' :
+    (app.classList.contains('tm-sidebar-collapsed') ? 'collapsed' : 'expanded');
+  var next = state === 'expanded' ? 'collapsed' : (state === 'collapsed' ? 'hidden' : 'expanded');
+  app.classList.remove('tm-sidebar-collapsed', 'tm-sidebar-hidden');
+  if (next === 'collapsed') app.classList.add('tm-sidebar-collapsed');
+  if (next === 'hidden') app.classList.add('tm-sidebar-hidden');
+  var labels = {
+    expanded: ['Ciutkan menu samping', 'fa-angles-left', 'true'],
+    collapsed: ['Sembunyikan menu samping', 'fa-angles-right', 'true'],
+    hidden: ['Tampilkan menu samping', 'fa-bars', 'false']
+  };
+  button.title = labels[next][0];
+  button.setAttribute('aria-label', labels[next][0]);
+  button.setAttribute('aria-expanded', labels[next][2]);
+  if (icon) icon.className = 'fa-solid ' + labels[next][1];
+  try { localStorage.setItem('tm-desktop-sidebar-state', next); } catch (e) {}
+}
+(function restoreDesktopSidebarState() {
+  try {
+    var state = localStorage.getItem('tm-desktop-sidebar-state');
+    var app = document.getElementById('app-screen');
+    var button = document.getElementById('desktop-sidebar-toggle');
+    var icon = document.getElementById('desktop-sidebar-toggle-icon');
+    if (!app || !button || !state) return;
+    if (state === 'collapsed') app.classList.add('tm-sidebar-collapsed');
+    if (state === 'hidden') app.classList.add('tm-sidebar-hidden');
+    var labels = {
+      expanded: ['Ciutkan menu samping', 'fa-angles-left', 'true'],
+      collapsed: ['Sembunyikan menu samping', 'fa-angles-right', 'true'],
+      hidden: ['Tampilkan menu samping', 'fa-bars', 'false']
+    };
+    var item = labels[state] || labels.expanded;
+    button.title = item[0];
+    button.setAttribute('aria-label', item[0]);
+    button.setAttribute('aria-expanded', item[2]);
+    if (icon) icon.className = 'fa-solid ' + item[1];
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
