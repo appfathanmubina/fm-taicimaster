@@ -1568,8 +1568,8 @@
       const n=document.getElementById('nav-'+tabName), s=document.getElementById('side-nav-'+tabName);
       if(n)n.classList.add('bottom-nav-active'); if(s)s.classList.add('nav-active');
       try{
-        if(tabName==='dashboard' && typeof loadDashboardData==='function') loadDashboardData(forceRefresh);
-        if(tabName==='prestasi' && typeof loadPrestasiList==='function') loadPrestasiList(forceRefresh);
+        if(tabName==='dashboard' && typeof loadDashboardData==='function') { loadDashboardData(forceRefresh); if(typeof loadDashboardTodayInfo==='function') loadDashboardTodayInfo(forceRefresh); }
+        if(tabName==='prestasi' && typeof loadPrestasiList==='function') { loadPrestasiList(forceRefresh); if(forceRefresh && (currentUser.role==='admin_prestasi'||currentUser.role==='superadmin') && typeof loadPendingApprovalList==='function') loadPendingApprovalList(true); }
         if(tabName==='pelanggaran' && typeof loadPelanggaranList==='function') loadPelanggaranList(forceRefresh);
         if(tabName==='perizinan' && typeof loadPerizinan==='function') loadPerizinan(forceRefresh);if(typeof switchPerizinanStatusTab==='function') switchPerizinanStatusTab();
         if(tabName==='kesehatan' && typeof loadKesehatan==='function') loadKesehatan(forceRefresh);if(typeof switchKesehatanStatusTab==='function') switchKesehatanStatusTab();
