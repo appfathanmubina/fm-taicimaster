@@ -2154,7 +2154,6 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
       const kelas = document.getElementById('rekap-class-filter')?.value || 'ALL';
       const santri = mode === 'SANTRI' ? (document.getElementById('rekap-search')?.value || '') : '';
       let progress = 12;
-      let progressTimer = null;
       const renderProgress = (value, message) => {
         progress = Math.max(progress, Math.min(95, value));
         const bar = document.getElementById('rekap-pdf-progress-bar');
@@ -2171,14 +2170,10 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
         allowEscapeKey: false,
         showConfirmButton: false,
         didOpen: () => {
-          progressTimer = setInterval(() => {
-            if (progress < 35) renderProgress(progress + 1, 'Menyiapkan data dan menyusun laporan...');
-          }, 450);
-        },
-        willClose: () => { if (progressTimer) clearInterval(progressTimer); }
+          renderProgress(35, 'Google Docs sedang menyusun laporan di server...');
+        }
       });
       google.script.run.withSuccessHandler(res => {
-        if (progressTimer) clearInterval(progressTimer);
         if (!res || !res.success) {
           Swal.fire('Gagal', res && res.message || 'Pembuatan PDF gagal', 'error');
           return;
@@ -2208,7 +2203,6 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
           Swal.fire('Gagal', 'PDF berhasil dibuat tetapi tidak dapat diunduh: ' + (err && err.message || err), 'error');
         }
       }).withFailureHandler(err => {
-        if (progressTimer) clearInterval(progressTimer);
         Swal.fire('Gagal', (err && err.message) || 'Koneksi ke server bermasalah saat membuat PDF.', 'error');
       }).generateRekapPdf(currentUser.sessionToken, mode, kelas, santri);
     }
