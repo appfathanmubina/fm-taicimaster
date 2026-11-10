@@ -1,14 +1,14 @@
 {
-  "id": "./",
+  "id": "/fm-taicimaster/",
   "name": "TAICIMASTER FM",
   "short_name": "TAICIMASTER",
   "description": "Sistem Perkembangan Santri - TAICIMASTER FM",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/fm-taicimaster/",
+  "scope": "/fm-taicimaster/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F8FAFC",
-  "theme_color": "#38257c",
+  "theme_color": "#7E22CE",
   "icons": [
     {
       "src": "./assets/icon-192.png",
