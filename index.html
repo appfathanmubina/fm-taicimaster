@@ -2197,13 +2197,25 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
             link.remove();
             setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
             updateProgress(100, 'Unduhan PDF telah dimulai.');
+            // Konfirmasi unduhan memakai toast internal TAICIMASTER,
+            // bukan popup besar yang mengganggu pekerjaan pengguna.
             setTimeout(() => {
               Swal.fire({
+                toast: true,
+                position: 'top-end',
                 icon: 'success',
+                iconColor: '#7c3aed',
                 title: 'PDF siap diunduh',
                 text: res.name || 'Rekapan-TAICIMASTER.pdf',
-                timer: 2200,
-                showConfirmButton: false
+                timer: 3600,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                background: '#ffffff',
+                customClass: {
+                  popup: '!rounded-2xl !border !border-violet-100 !shadow-xl',
+                  title: '!text-sm !font-bold !text-slate-800',
+                  htmlContainer: '!text-xs !text-slate-500'
+                }
               });
             }, 350);
           } catch (error) {
