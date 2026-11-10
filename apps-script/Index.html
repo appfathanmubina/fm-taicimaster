@@ -2152,15 +2152,47 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
       if (!currentUser) return;
       const mode = document.getElementById('rekap-mode')?.value || 'ANAK';
       const kelas = document.getElementById('rekap-class-filter')?.value || 'ALL';
-      let santri = '';
-      if (mode === 'SANTRI') santri = document.getElementById('rekap-search')?.value || '';
-      Swal.fire({title:'Menyiapkan PDF...',text:'PDF sedang disiapkan untuk diunduh.',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
-      google.script.run.withSuccessHandler(res=>{
-        if(!res || !res.success){Swal.fire('Gagal',res&&res.message||'Pembuatan PDF gagal','error');return;}
+      const santri = mode === 'SANTRI' ? (document.getElementById('rekap-search')?.value || '') : '';
+      let progress = 12;
+      let progressTimer = null;
+      const renderProgress = (value, message) => {
+        progress = Math.max(progress, Math.min(95, value));
+        const bar = document.getElementById('rekap-pdf-progress-bar');
+        const pct = document.getElementById('rekap-pdf-progress-value');
+        const status = document.getElementById('rekap-pdf-progress-status');
+        if (bar) bar.style.width = progress + '%';
+        if (pct) pct.textContent = progress + '%';
+        if (status) status.textContent = message;
+      };
+      Swal.fire({
+        title: 'Menyiapkan Rekapan PDF',
+        html: '<div class="text-left"><div class="flex items-center justify-between mb-2"><span id="rekap-pdf-progress-status" class="text-xs text-slate-600">Menyiapkan data rekapan...</span><strong id="rekap-pdf-progress-value" class="text-sm text-purple-700">12%</strong></div><div class="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden"><div id="rekap-pdf-progress-bar" class="h-full rounded-full bg-purple-600 transition-all duration-300" style="width:12%"></div></div><p class="text-[11px] text-slate-400 mt-3">Mohon tunggu. Dokumen sementara akan dihapus setelah PDF selesai diproses.</p></div>',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          progressTimer = setInterval(() => {
+            if (progress < 35) renderProgress(progress + 1, 'Menyiapkan data dan menyusun laporan...');
+          }, 450);
+        },
+        willClose: () => { if (progressTimer) clearInterval(progressTimer); }
+      });
+      google.script.run.withSuccessHandler(res => {
+        if (progressTimer) clearInterval(progressTimer);
+        if (!res || !res.success) {
+          Swal.fire('Gagal', res && res.message || 'Pembuatan PDF gagal', 'error');
+          return;
+        }
+        renderProgress(78, 'Google Docs selesai. Mengonversi dan menyiapkan file PDF...');
         try {
           const binary = atob(res.base64 || '');
           const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const chunkSize = 0x8000;
+          for (let offset = 0; offset < binary.length; offset += chunkSize) {
+            const end = Math.min(offset + chunkSize, binary.length);
+            for (let i = offset; i < end; i++) bytes[i] = binary.charCodeAt(i);
+          }
+          renderProgress(91, 'PDF siap. Memulai download...');
           const blob = new Blob([bytes], {type:res.mimeType || 'application/pdf'});
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
@@ -2169,14 +2201,16 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;google.script.run
           document.body.appendChild(link);
           link.click();
           link.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),1500);
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+          renderProgress(100, 'Download telah dimulai.');
           Swal.fire({icon:'success',title:'PDF berhasil diunduh',text:res.name || 'File PDF telah dikirim ke unduhan perangkat.'});
         } catch (err) {
-          Swal.fire('Gagal', 'PDF berhasil dibuat tetapi tidak dapat diunduh: ' + (err&&err.message || err), 'error');
+          Swal.fire('Gagal', 'PDF berhasil dibuat tetapi tidak dapat diunduh: ' + (err && err.message || err), 'error');
         }
-      }).withFailureHandler(err=>{
-        Swal.fire('Gagal', (err&&err.message) || 'Koneksi ke server bermasalah saat membuat PDF.', 'error');
-      }).generateRekapPdf(currentUser.sessionToken,mode,kelas,santri);
+      }).withFailureHandler(err => {
+        if (progressTimer) clearInterval(progressTimer);
+        Swal.fire('Gagal', (err && err.message) || 'Koneksi ke server bermasalah saat membuat PDF.', 'error');
+      }).generateRekapPdf(currentUser.sessionToken, mode, kelas, santri);
     }
 
     function filterRekapTable() {
