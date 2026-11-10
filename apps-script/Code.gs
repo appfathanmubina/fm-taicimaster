@@ -1142,7 +1142,6 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
       title = 'Rekapan Per Anak';
     }
 
-    var folder = getOrCreateReportFolder_();
     var tz = Session.getScriptTimeZone() || 'Asia/Jakarta';
     var stamp = Utilities.formatDate(new Date(), tz, 'yyyyMMdd_HHmmss');
     var safeFilter = String((santriName || filterLabel || 'ALL')).replace(/[^a-zA-Z0-9_-]+/g,'_').substring(0,60);
@@ -1191,11 +1190,16 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     doc.saveAndClose();
 
     var temp = DriveApp.getFileById(doc.getId());
-    var pdfBlob = temp.getAs(MimeType.PDF).setName(fileName + '.pdf');
-    var pdfFile = folder.createFile(pdfBlob);
-    temp.setTrashed(true);
-    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', pdfFile.getId() + '|' + modeU);
-    return {success:true,id:pdfFile.getId(),name:pdfFile.getName(),url:pdfFile.getUrl(),folderUrl:folder.getUrl(),mode:modeU};
+    var pdfBlob;
+    try {
+      pdfBlob = temp.getAs(MimeType.PDF).setName(fileName + '.pdf');
+    } finally {
+      // Dokumen Google sementara hanya dipakai untuk rendering PDF, bukan disimpan sebagai laporan.
+      temp.setTrashed(true);
+    }
+    var pdfBase64 = Utilities.base64Encode(pdfBlob.getBytes());
+    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', fileName + '.pdf|' + modeU + '|DOWNLOAD');
+    return {success:true,name:fileName + '.pdf',mimeType:'application/pdf',base64:pdfBase64,mode:modeU};
   } catch (e) {
     return {success:false,message:'Pembuatan PDF gagal: ' + e.toString()};
   } finally {
