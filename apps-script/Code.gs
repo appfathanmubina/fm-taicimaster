@@ -1117,6 +1117,8 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
   if (!auth.ok) return auth.response;
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
+  var tempFile = null;
+  var tempDocId = null;
   try {
     var modeU = String(mode || 'ANAK').toUpperCase();
     var title, data, filterLabel = String(kelasFilter || 'ALL');
@@ -1141,15 +1143,19 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     }
 
     var tz = Session.getScriptTimeZone() || 'Asia/Jakarta';
-    var stamp = Utilities.formatDate(new Date(), tz, 'yyyyMMdd_HHmmss');
+    var now = new Date();
+    var stamp = Utilities.formatDate(now, tz, 'yyyyMMdd_HHmmss');
     var safeFilter = String((santriName || filterLabel || 'ALL')).replace(/[^a-zA-Z0-9_-]+/g,'_').substring(0,60);
     var fileName = 'TAICIMASTER_' + modeU + '_' + safeFilter + '_' + stamp;
 
+    // Google Docs dipakai hanya sebagai dokumen sementara agar format laporan tetap konsisten.
+    // Tidak membuat folder laporan dan tidak menyimpan PDF hasil ekspor ke Drive.
     var doc = DocumentApp.create(fileName);
+    tempDocId = doc.getId();
+    tempFile = DriveApp.getFileById(tempDocId);
     var body = doc.getBody();
     body.setMarginTop(36).setMarginBottom(36).setMarginLeft(42).setMarginRight(42);
     appendReportBranding_(body, doc);
-    // Stage 11.24: polished report cover/header without changing report data contracts.
     var titleTable = body.appendTable([[CONFIG.APP_NAME + '  •  LAPORAN RESMI']]);
     titleTable.setBorderWidth(0);
     var titleCell = titleTable.getRow(0).getCell(0);
@@ -1163,7 +1169,7 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     heading.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
     heading.setForegroundColor('#581C87').setBold(true);
 
-    var meta = body.appendParagraph('Dicetak: ' + Utilities.formatDate(new Date(), tz, 'dd MMMM yyyy, HH:mm:ss') +
+    var meta = body.appendParagraph('Dicetak: ' + Utilities.formatDate(now, tz, 'dd MMMM yyyy, HH:mm:ss') +
       '  •  Mode: ' + modeU +
       (filterLabel && filterLabel.toUpperCase() !== 'ALL' ? '  •  Kelas: ' + filterLabel : ''));
     meta.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
@@ -1171,36 +1177,33 @@ function generateRekapPdf(token, mode, kelasFilter, santriName) {
     appendReportSummary_(body, data, modeU, filterLabel, santriName, tz);
 
     if (modeU === 'KELAS') {
-      data.forEach(function(x, idx){
-        appendClassSection_(body, x, idx + 1);
-      });
+      data.forEach(function(x, idx){ appendClassSection_(body, x, idx + 1); });
     } else {
-      data.forEach(function(x, idx){
-        appendStudentSection_(body, x, idx + 1);
-      });
+      data.forEach(function(x, idx){ appendStudentSection_(body, x, idx + 1); });
     }
     var footer = doc.getFooter() || doc.addFooter();
     footer.clear();
-    footer.appendParagraph(CONFIG.APP_NAME + ' • Laporan resmi • ' + Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm:ss'))
+    footer.appendParagraph(CONFIG.APP_NAME + ' • Laporan resmi • ' + Utilities.formatDate(now, tz, 'dd/MM/yyyy HH:mm:ss'))
       .setAlignment(DocumentApp.HorizontalAlignment.CENTER).setForegroundColor('#64748B').setFontSize(8);
-    body.appendParagraph('Dokumen ini dihasilkan oleh ' + CONFIG.APP_NAME + ' dan tersimpan pada folder laporan resmi.')
+    body.appendParagraph('Dokumen ini dihasilkan oleh ' + CONFIG.APP_NAME + ' dan diunduh langsung oleh pengguna.')
       .setForegroundColor('#64748B').setFontSize(8);
     doc.saveAndClose();
 
-    var temp = DriveApp.getFileById(doc.getId());
-    var pdfBlob;
-    try {
-      pdfBlob = temp.getAs(MimeType.PDF).setName(fileName + '.pdf');
-    } finally {
-      // Dokumen Google sementara hanya dipakai untuk rendering PDF, bukan disimpan sebagai laporan.
-      temp.setTrashed(true);
-    }
+    var pdfBlob = tempFile.getAs(MimeType.PDF).setName(fileName + '.pdf');
     var pdfBase64 = Utilities.base64Encode(pdfBlob.getBytes());
-    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', fileName + '.pdf|' + modeU + '|DOWNLOAD');
+    auditLog_(auth.session, 'GENERATE_REPORT_PDF', 'REPORT', fileName + '.pdf|' + modeU + '|TEMP_DOC_DIRECT_DOWNLOAD');
     return {success:true,name:fileName + '.pdf',mimeType:'application/pdf',base64:pdfBase64,mode:modeU};
   } catch (e) {
     return {success:false,message:'Pembuatan PDF gagal: ' + e.toString()};
   } finally {
+    // Dokumen Google sementara selalu dibersihkan, termasuk saat konversi gagal.
+    if (tempDocId) {
+      try {
+        (tempFile || DriveApp.getFileById(tempDocId)).setTrashed(true);
+      } catch (cleanupError) {
+        console.error('Gagal membersihkan dokumen PDF sementara: ' + cleanupError);
+      }
+    }
     try { lock.releaseLock(); } catch (ignore) {}
   }
 }
