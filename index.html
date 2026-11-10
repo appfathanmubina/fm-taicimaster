@@ -2122,11 +2122,100 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
       const kelas = document.getElementById('rekap-class-filter')?.value || 'ALL';
       let santri = '';
       if (mode === 'SANTRI') santri = document.getElementById('rekap-search')?.value || '';
-      Swal.fire({title:'Menyiapkan PDF...',text:'File akan disimpan ke Google Drive laporan.',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
-      TaiciBridge.run.withSuccessHandler(res=>{
-        if(!res.success){Swal.fire('Gagal',res.message||'Pembuatan PDF gagal','error');return;}
-        Swal.fire({icon:'success',title:'PDF berhasil dibuat',html:`<p class=\"text-sm\">${escapeHtml(res.name)}</p><a href=\"${res.url}\" target=\"_blank\" class=\"inline-block mt-3 bg-amethyst-700 text-white px-4 py-2 rounded-lg font-bold\">Buka PDF di Google Drive</a>`});
-      }).generateRekapPdf(currentUser.sessionToken,mode,kelas,santri);
+
+      let progress = 12;
+      let progressTimer = null;
+      const progressHtml = (value, message) => `
+        <div class="text-left">
+          <p id="rekap-pdf-progress-status" class="text-sm text-slate-600 mb-3">${message}</p>
+          <div class="w-full h-3 rounded-full bg-slate-100 overflow-hidden">
+            <div id="rekap-pdf-progress-bar" class="h-full rounded-full bg-amethyst-700 transition-all duration-300" style="width:${value}%"></div>
+          </div>
+          <div class="flex justify-end mt-2 text-xs font-bold text-amethyst-700">
+            <span id="rekap-pdf-progress-value">${value}%</span>
+          </div>
+        </div>`;
+
+      const updateProgress = (value, message) => {
+        progress = value;
+        const container = Swal.getHtmlContainer();
+        if (!container) return;
+        const bar = container.querySelector('#rekap-pdf-progress-bar');
+        const label = container.querySelector('#rekap-pdf-progress-value');
+        const status = container.querySelector('#rekap-pdf-progress-status');
+        if (bar) bar.style.width = value + '%';
+        if (label) label.textContent = value + '%';
+        if (status && message) status.textContent = message;
+      };
+
+      const stopProgress = () => {
+        if (progressTimer) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+        }
+      };
+
+      Swal.fire({
+        title: 'Menyiapkan PDF...',
+        html: progressHtml(progress, 'Menghubungi server dan menyiapkan laporan...'),
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          progressTimer = setInterval(() => {
+            if (progress < 84) updateProgress(Math.min(84, progress + 2), 'Server sedang memproses laporan...');
+          }, 850);
+        },
+        willClose: stopProgress
+      });
+
+      TaiciBridge.run
+        .withSuccessHandler(res => {
+          stopProgress();
+          if (!res || !res.success) {
+            Swal.fire('Gagal', (res && res.message) || 'Pembuatan PDF gagal.', 'error');
+            return;
+          }
+          if (!res.base64) {
+            Swal.fire('Gagal', 'Server tidak mengirimkan data PDF. Perbarui deployment Apps Script dan coba kembali.', 'error');
+            return;
+          }
+
+          try {
+            updateProgress(91, 'Menyiapkan file PDF untuk diunduh...');
+            const binary = atob(res.base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: res.mimeType || 'application/pdf' });
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = res.name || 'Rekapan-TAICIMASTER.pdf';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+            updateProgress(100, 'Unduhan PDF telah dimulai.');
+            setTimeout(() => {
+              Swal.fire({
+                icon: 'success',
+                title: 'PDF siap diunduh',
+                text: res.name || 'Rekapan-TAICIMASTER.pdf',
+                timer: 2200,
+                showConfirmButton: false
+              });
+            }, 350);
+          } catch (error) {
+            console.error('Unduhan PDF PWA gagal:', error);
+            Swal.fire('Gagal mengunduh PDF', error.message || 'Browser tidak dapat menyiapkan file PDF.', 'error');
+          }
+        })
+        .withFailureHandler(error => {
+          stopProgress();
+          Swal.fire('Gagal', error && error.message ? error.message : 'Koneksi ke server gagal.', 'error');
+        })
+        .generateRekapPdf(currentUser.sessionToken, mode, kelas, santri);
     }
 
     function filterRekapTable() {
