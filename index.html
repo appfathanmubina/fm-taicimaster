@@ -2956,7 +2956,7 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/fm-taicimaster/service-worker.js?v=18', { scope: '/fm-taicimaster/' })
+      navigator.serviceWorker.register('/fm-taicimaster/service-worker.js?v=21', { scope: '/fm-taicimaster/' })
         .catch(function (error) { console.warn('PWA offline shell tidak terdaftar:', error); });
     });
   }
