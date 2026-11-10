@@ -1,23 +1,23 @@
 {
-  "id": "/fm-taicimaster/",
+  "id": "https://appfathanmubina.github.io/fm-taicimaster/?pwa=taicimaster-fm",
   "name": "TAICIMASTER FM",
   "short_name": "TAICIMASTER",
   "description": "Sistem Perkembangan Santri - TAICIMASTER FM",
-  "start_url": "/fm-taicimaster/",
-  "scope": "/fm-taicimaster/",
+  "start_url": "https://appfathanmubina.github.io/fm-taicimaster/",
+  "scope": "https://appfathanmubina.github.io/fm-taicimaster/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F8FAFC",
   "theme_color": "#7E22CE",
   "icons": [
     {
-      "src": "./assets/icon-192.png",
+      "src": "https://appfathanmubina.github.io/fm-taicimaster/assets/icon-192.png",
       "purpose": "any",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "./assets/icon-512.png",
+      "src": "https://appfathanmubina.github.io/fm-taicimaster/assets/icon-512.png",
       "purpose": "any maskable",
       "type": "image/png",
       "sizes": "512x512"
