@@ -887,8 +887,8 @@
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Akses Kelas</label>
-            <input type="text" id="u-akses-kelas" placeholder="All atau Nama Kelas (misal: VII-A)" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm">
+            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Akses Kelas (khusus Wali Kelas)</label>
+            <input type="text" id="u-akses-kelas" placeholder="All atau Nama Kelas (misal: VII-A)" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm"><p class="text-[10px] text-slate-400 mt-1">Untuk Admin Disiplin, Kesehatan, Perizinan, dan role non-Wali Kelas, isi All.</p>
           </div>
         </div>
 
@@ -1529,9 +1529,9 @@
 
     function loadUserList(force=false){
       const cached=getInitialSyncCache('Pengaturan Pengguna');
-      const render=res=>{storeInitialSyncCache('Pengaturan Pengguna',res);const tbody=document.getElementById('user-list-table-body');if(!tbody||!res||!res.success)return;tbody.innerHTML='';(res.data||[]).forEach(u=>{tbody.innerHTML+=`<tr class="border-b"><td class="p-3 font-bold">${escapeHtml(u.id)}</td><td class="p-3">${escapeHtml(u.nama)}</td><td class="p-3 text-slate-600">${escapeHtml(u.email)}</td><td class="p-3"><span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded font-bold uppercase">${escapeHtml(u.role)}</span></td><td class="p-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">${escapeHtml(u.status)}</span></td><td class="p-3 text-xs font-semibold">${escapeHtml(u.lingkupSantri||'ALL')}</td><td class="p-3"><button type="button" onclick="changeUserSantriScope('${encodeURIComponent(String(u.id))}','${escapeHtml(u.lingkupSantri||'ALL')}')" class="text-xs font-bold text-amethyst-700 hover:underline">Atur Lingkup</button></td></tr>`;});};
+      const render=res=>{storeInitialSyncCache('Pengaturan Pengguna',res);const tbody=document.getElementById('user-list-table-body');if(!tbody||!res||!res.success)return;tbody.innerHTML='';(res.data||[]).forEach(u=>{tbody.innerHTML+=`<tr class="border-b"><td class="p-3 font-bold">${escapeHtml(u.id)}</td><td class="p-3">${escapeHtml(u.nama)}</td><td class="p-3 text-slate-600">${escapeHtml(u.email)}</td><td class="p-3"><span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded font-bold uppercase">${escapeHtml(u.role)}</span></td><td class="p-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">${escapeHtml(u.status)}</span></td><td class="p-3 text-xs font-semibold">${escapeHtml((u.lingkupSantri||'ALL')==='PUTRA'?'Santri Putra':(u.lingkupSantri||'ALL')==='PUTRI'?'Santri Putri':'Putra & Putri')}</td><td class="p-3"><button type="button" onclick="changeUserSantriScope('${encodeURIComponent(String(u.id))}','${escapeHtml(u.lingkupSantri||'ALL')}')" class="text-xs font-bold text-amethyst-700 hover:underline">Atur Lingkup</button></td></tr>`;});};
       if(!force&&cached&&cached.success!==false){render(cached);return;}
-      google.script.run.withSuccessHandler(render).withFailureHandler(err=>{const t=document.getElementById('user-list-table-body');if(t)t.innerHTML='<tr><td colspan="5" class="p-4 text-center text-rose-600">Gagal memuat user: '+escapeHtml((err&&err.message)||'Sesi/koneksi bermasalah.')+'</td></tr>';}).getUserList(currentUser.sessionToken);
+      google.script.run.withSuccessHandler(render).withFailureHandler(err=>{const t=document.getElementById('user-list-table-body');if(t)t.innerHTML='<tr><td colspan="7" class="p-4 text-center text-rose-600">Gagal memuat user: '+escapeHtml((err&&err.message)||'Sesi/koneksi bermasalah.')+'</td></tr>';}).getUserList(currentUser.sessionToken);
     }
     function openAddUserModal() { document.getElementById('modal-add-user').classList.remove('hidden'); }
     function closeAddUserModal() { 
