@@ -1460,7 +1460,7 @@ function getPelanggaranList(token){
   try{
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran');
     if(!sh)return {success:true,data:[]};
-    ['Status_Kembali','Returned_At','Returned_By'].forEach(function(h){ensureColumn(sh,h);});var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
+    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
     for(var i=d.length-1;i>=1;i--){
       var access=assertTransactionRowAccess_(a.session,d[i],m,scopeIndex);if(!access.ok)continue;
       var sid=m['ID_Santri']?String(d[i][m['ID_Santri']-1]||'').trim():'';
@@ -1657,7 +1657,7 @@ function getPerizinanList(role,aksesKelas,token){
   try{
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan');
     if(!sh)return {success:false,message:'Sheet Trx_Perizinan tidak ditemukan. Jalankan inisialisasi database terlebih dahulu.'};
-    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
+    ['Status_Kembali','Returned_At','Returned_By'].forEach(function(h){ensureColumn(sh,h);});var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
     function gv(row,name){return m[name]?row[m[name]-1]:'';}
     for(var i=d.length-1;i>=1;i--){
       if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;
