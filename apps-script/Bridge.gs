@@ -49,6 +49,7 @@ var TAICI_PWA_RPC_ = {
   updateCatatanWaliKelas: updateCatatanWaliKelas,
   deleteCatatanWaliKelas: deleteCatatanWaliKelas,
   addNewUser: addNewUser,
+  updateUserSantriScope: updateUserSantriScope,
   getStage7Status: getStage7Status,
   updateFeatureToggle: updateFeatureToggle,
   cleanupExpiredSessions: cleanupExpiredSessions,
@@ -85,7 +86,7 @@ var TAICI_PWA_RPC_ = {
 };
 
 function getTaiciPwaBridgeConfig() {
-  return { version: '11.28.6-migration.1', allowedOrigins: TAICI_PWA_ALLOWED_ORIGINS_.slice() };
+  return { version: '11.28.7-user-scope.1', allowedOrigins: TAICI_PWA_ALLOWED_ORIGINS_.slice() };
 }
 
 function taiciPwaBridgeCall(name, args) {
