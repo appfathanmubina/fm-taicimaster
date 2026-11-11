@@ -403,6 +403,8 @@ function getBiodataSantri(nama, role, aksesKelas, token){
       var rowName=String(m['Nama_Santri']?d[i][m['Nama_Santri']-1]:'').trim();
       if(rowName.toLowerCase()!==target)continue;
       var kelas=String(m['Kelas']?d[i][m['Kelas']-1]:'').trim();
+      var scopeCheck=assertSantriAccess_(s,{kelas:kelas,jenisKelamin:m['Jenis_Kelamin']?d[i][m['Jenis_Kelamin']-1]:''});
+      if(!scopeCheck.ok)return {success:false,message:scopeCheck.message};
       if(s.role==='walikelas' && s.aksesKelas!=='All' && kelas.toLowerCase()!==String(s.aksesKelas||'').trim().toLowerCase())
         return {success:false,message:'Anda hanya dapat mengakses biodata santri pada kelas yang menjadi tanggung jawab Anda.'};
       var data={};
@@ -432,6 +434,7 @@ function getBiodataCompletenessWaliKelas(token){
     var m=headerMap(sh), rows=sh.getDataRange().getValues(), out=[];
     for(var i=1;i<rows.length;i++){
       var kelas=String(m['Kelas']?rows[i][m['Kelas']-1]:'').trim();
+      if(!assertSantriAccess_(a.session,{kelas:kelas,jenisKelamin:m['Jenis_Kelamin']?rows[i][m['Jenis_Kelamin']-1]:''}).ok)continue;
       if(a.session.role==='walikelas' && a.session.aksesKelas!=='All' &&
          kelas.toLowerCase()!==String(a.session.aksesKelas||'').trim().toLowerCase()) continue;
       var c=biodataCompleteness_(rows[i],m);
@@ -879,10 +882,10 @@ function getDashboardTodayInfo(role, aksesKelas, token) {
   var session=auth.session;
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), tz=Session.getScriptTimeZone(), today=Utilities.formatDate(new Date(),tz,'yyyy-MM-dd');
-    var classMap={}, san=ss.getSheetByName('Data_Santri');
-    if(san){var sd=san.getDataRange().getValues(),sm=headerMap(san);for(var i=1;i<sd.length;i++){var n=sm['Nama_Santri']?String(sd[i][sm['Nama_Santri']-1]||'').trim():'';var k=sm['Kelas']?String(sd[i][sm['Kelas']-1]||'').trim():'';if(n)classMap[n.toLowerCase()]=k;}}
+    var classMap={},genderMap={}, san=ss.getSheetByName('Data_Santri');
+    if(san){var sd=san.getDataRange().getValues(),sm=headerMap(san);for(var i=1;i<sd.length;i++){var n=sm['Nama_Santri']?String(sd[i][sm['Nama_Santri']-1]||'').trim():'';var k=sm['Kelas']?String(sd[i][sm['Kelas']-1]||'').trim():'';if(n){classMap[n.toLowerCase()]=k;genderMap[n.toLowerCase()]=sm['Jenis_Kelamin']?sd[i][sm['Jenis_Kelamin']-1]:'';}}}
     function dk(v){if(!v)return '';var d=v instanceof Date?v:new Date(v);if(isNaN(d.getTime())){var m=String(v).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'';}return Utilities.formatDate(d,tz,'yyyy-MM-dd');}
-    function allowed(n,k){if(session.role!=='walikelas')return true;var target=String(session.aksesKelas||'All').trim();return !target||target==='All'||String(k||classMap[String(n||'').toLowerCase()]||'').trim().toLowerCase()===target.toLowerCase();}
+    function allowed(n,k){var key=String(n||'').trim().toLowerCase(),kelas=String(k||classMap[key]||'').trim();var scopeCheck=assertSantriAccess_(session,{kelas:kelas,jenisKelamin:genderMap[key]||''});if(!scopeCheck.ok)return false;var target=String(session.aksesKelas||'All').trim();return session.role!=='walikelas'||!target||target==='All'||kelas.toLowerCase()===target.toLowerCase();}
     function read(sheetName,start,end,status,excluded,type){var sh=ss.getSheetByName(sheetName);if(!sh)return [];var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=1;i<d.length;i++){var n=m['Nama_Santri']?String(d[i][m['Nama_Santri']-1]||'').trim():'';if(!n)continue;var k=m['Kelas']?String(d[i][m['Kelas']-1]||'').trim():classMap[n.toLowerCase()]||'';if(!allowed(n,k))continue;var ok=false;if(end){var a=dk(m[start]?d[i][m[start]-1]:''),b=dk(m[end]?d[i][m[end]-1]:'');ok=!!a&&!!b&&a<=today&&today<=b;}else ok=dk(m[start]?d[i][m[start]-1]:'')===today;if(!ok)continue;if(status&&m[status]&&excluded&&excluded.length){var st=String(d[i][m[status]-1]||'').toLowerCase();if(excluded.indexOf(st)>=0)continue;}o.push({nama:n,kelas:k,type:type});}return o;}
     var izin=read('Trx_Perizinan','Mulai','Selesai','Status',['ditolak'],'izin');
     var sakit=read('Trx_Kesehatan','Tanggal',null,'',[],'sakit');
@@ -1904,11 +1907,12 @@ function getRekapClassList(role, aksesKelas, token) {
   try {
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');
     if(!sh || sh.getLastRow()<=1)return {success:true,data:[]};
-    var rows=sh.getDataRange().getValues(), m=headerMap(sh), idxK=m['Kelas']-1;
+    var rows=sh.getDataRange().getValues(), m=headerMap(sh), idxK=m['Kelas']-1, idxGender=(m['Jenis_Kelamin']||0)-1;
     if(idxK<0)return {success:false,message:'Kolom Kelas pada Data_Santri tidak ditemukan.'};
     var map={};
     for(var i=1;i<rows.length;i++){
       var k=String(rows[i][idxK]||'').trim(); if(!k)continue;
+      if(!assertSantriAccess_(session,{kelas:k,jenisKelamin:idxGender>=0?rows[i][idxGender]:''}).ok)continue;
       if(session.role==='walikelas' && session.aksesKelas!=='All' && k.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;
       map[k]=true;
     }
@@ -1922,11 +1926,12 @@ function getRekapPerAnak(role, aksesKelas, kelasFilter, token) {
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');
     if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};
-    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1, ki=(sm['Kelas']||0)-1;
+    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1, ki=(sm['Kelas']||0)-1, gi=(sm['Jenis_Kelamin']||0)-1;
     if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
     var wanted=String(kelasFilter||'ALL').trim().toLowerCase(), siswa=[];
     for(var i=1;i<rows.length;i++){
       var nama=String(rows[i][ni]||'').trim(), kelas=String(rows[i][ki]||'').trim(); if(!nama)continue;
+      if(!assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gi>=0?rows[i][gi]:''}).ok)continue;
       if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;
       if(wanted!=='all'&&kelas.toLowerCase()!==wanted)continue;
       siswa.push({nama:nama,kelas:kelas,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]});
