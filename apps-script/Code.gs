@@ -773,28 +773,36 @@ function getDashboardStats(role, aksesKelas, searchName, filterType, token) {
     var sheetPelanggaran = ss.getSheetByName('Trx_Pelanggaran');
     var sheetCatatan = ss.getSheetByName('Trx_Catatan_Wali');
     var santriData = sheetSantri ? sheetSantri.getDataRange().getValues() : [];
-    var classSantriList = [], santriClassMap = {};
-
+    var classSantriList = [], santriClassMap = {}, santriGenderMap = {}, santriVisibleMap = {};
+    var santriMap = sheetSantri ? headerMap(sheetSantri) : {};
     for (var i = 1; i < santriData.length; i++) {
-      var nama = String(santriData[i][2] || '').trim();
-      var kelas = String(santriData[i][3] || '').trim();
-      if (nama) santriClassMap[nama.toLowerCase()] = kelas;
-      if (role === 'walikelas' && aksesKelas !== 'All' && aksesKelas !== '' &&
-          kelas.toLowerCase() === String(aksesKelas).trim().toLowerCase()) classSantriList.push(nama);
+      var nama = String(santriMap['Nama_Santri'] ? santriData[i][santriMap['Nama_Santri']-1] : santriData[i][2] || '').trim();
+      var kelas = String(santriMap['Kelas'] ? santriData[i][santriMap['Kelas']-1] : santriData[i][3] || '').trim();
+      var gender = santriMap['Jenis_Kelamin'] ? santriData[i][santriMap['Jenis_Kelamin']-1] : '';
+      if (!nama) continue;
+      santriClassMap[nama.toLowerCase()] = kelas;
+      santriGenderMap[nama.toLowerCase()] = gender;
+      var allowedStudent=assertSantriAccess_(_session,{kelas:kelas,jenisKelamin:gender}).ok &&
+        (role!=='walikelas'||aksesKelas==='All'||aksesKelas===''||kelas.toLowerCase()===String(aksesKelas).trim().toLowerCase());
+      if(allowedStudent){santriVisibleMap[nama.toLowerCase()]=true;classSantriList.push(nama);}
     }
 
-    var totalSantri = (role === 'walikelas' && aksesKelas !== 'All' && aksesKelas !== '') ?
-      classSantriList.length : Math.max(0, santriData.length - 1);
-    var totalPrestasi = sheetPrestasi ? Math.max(0, sheetPrestasi.getLastRow() - 1) : 0;
-    var totalPelanggaran = sheetPelanggaran ? Math.max(0, sheetPelanggaran.getLastRow() - 1) : 0;
+    var totalSantri = classSantriList.length;
+    function countVisibleRows(sheet, nameHeader) {
+      if(!sheet||sheet.getLastRow()<=1)return 0;
+      var rows=sheet.getDataRange().getValues(),m=headerMap(sheet),col=m[nameHeader]||2,count=0;
+      for(var ri=1;ri<rows.length;ri++){var n=String(rows[ri][col-1]||'').trim().toLowerCase();if(n&&santriVisibleMap[n])count++;}
+      return count;
+    }
+    var totalPrestasi = countVisibleRows(sheetPrestasi,'Nama_Santri');
+    var totalPelanggaran = countVisibleRows(sheetPelanggaran,'Nama_Santri');
     var recentActivities = [];
     var search = String(searchName || '').trim().toLowerCase();
     var filter = String(filterType || 'ALL').toUpperCase();
 
     function visible(name, type) {
       var n = String(name || '').trim();
-      var classAllowed = role !== 'walikelas' || aksesKelas === 'All' || aksesKelas === '' ||
-        String(santriClassMap[n.toLowerCase()] || '').toLowerCase() === String(aksesKelas).trim().toLowerCase();
+      var classAllowed = !!santriVisibleMap[n.toLowerCase()];
       return classAllowed && (!search || n.toLowerCase().indexOf(search) !== -1) &&
         (filter === 'ALL' || filter === type);
     }
@@ -1957,9 +1965,9 @@ function getRekapPerKelas(role, aksesKelas, token) {
   var session=auth.session;
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};
-    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1,ki=(sm['Kelas']||0)-1;if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
+    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1,ki=(sm['Kelas']||0)-1,gi=(sm['Jenis_Kelamin']||0)-1;if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
     var classes={},nameToClass={};
-    for(var i=1;i<rows.length;i++){var nama=String(rows[i][ni]||'').trim(),kelas=String(rows[i][ki]||'').trim();if(!kelas)continue;if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;if(!classes[kelas])classes[kelas]={kelas:kelas,santri:0,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]};classes[kelas].santri++;if(nama)nameToClass[nama.toLowerCase()]=kelas;}
+    for(var i=1;i<rows.length;i++){var nama=String(rows[i][ni]||'').trim(),kelas=String(rows[i][ki]||'').trim();if(!kelas)continue;if(!assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gi>=0?rows[i][gi]:''}).ok)continue;if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;if(!classes[kelas])classes[kelas]={kelas:kelas,santri:0,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]};classes[kelas].santri++;if(nama)nameToClass[nama.toLowerCase()]=kelas;}
     function read(name,cb){var sh=ss.getSheetByName(name);if(!sh||sh.getLastRow()<=1)return;var data=sh.getDataRange().getValues(),m=headerMap(sh),ni2=(m['Nama_Santri']||0)-1;if(ni2<0)return;for(var j=1;j<data.length;j++){var k=nameToClass[String(data[j][ni2]||'').trim().toLowerCase()];if(k&&classes[k])cb(data[j],m,classes[k]);}}
     read('Trx_Prestasi',function(r,m,c){var st=m['Status_Approval']?String(r[m['Status_Approval']-1]||''):'';if(st==='Approved'||st==='Disetujui')c.prestasi.push({santriNama:m['Nama_Santri']?r[m['Nama_Santri']-1]:'',tanggal:formatDateSafe(m['Tanggal']?r[m['Tanggal']-1]:''),judul:(m['Jenis_Prestasi']?r[m['Jenis_Prestasi']-1]:'')||(m['Uraian_Prestasi']?r[m['Uraian_Prestasi']-1]:''),detail:m['Uraian_Prestasi']?r[m['Uraian_Prestasi']-1]:'',createdBy:m['Created_By']?r[m['Created_By']-1]:''});});
     read('Trx_Pelanggaran',function(r,m,c){c.pelanggaran.push({santriNama:m['Nama_Santri']?r[m['Nama_Santri']-1]:'',tanggal:formatDateSafe(m['Tanggal']?r[m['Tanggal']-1]:''),judul:(m['Jenis_Pelanggaran']?r[m['Jenis_Pelanggaran']-1]:'')+' - Tingkat '+(m['Tingkat_Pelanggaran']?r[m['Tingkat_Pelanggaran']-1]:''),detail:m['Deskripsi']?r[m['Deskripsi']-1]:'',tindakLanjut:m['Tindak_Lanjut']?r[m['Tindak_Lanjut']-1]:'',createdBy:m['Created_By']?r[m['Created_By']-1]:''});});
