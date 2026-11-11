@@ -836,16 +836,6 @@
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password Lama *</label><input type="password" id="cp-old" required autocomplete="current-password" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password Baru *</label><input type="password" id="cp-new" required minlength="6" autocomplete="new-password" placeholder="Minimal 6 karakter" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Konfirmasi Password Baru *</label><input type="password" id="cp-confirm" required minlength="6" autocomplete="new-password" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lingkup Santri</label>
-          <select id="u-lingkup-santri" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm">
-            <option value="ALL">Semua Santri (Putra &amp; Putri)</option>
-            <option value="PUTRA">Santri Putra — Semua Kelas</option>
-            <option value="PUTRI">Santri Putri — Semua Kelas</option>
-          </select>
-          <p class="text-[10px] text-slate-400 mt-1">Batas ini berlaku untuk seluruh kelas dan diperiksa kembali oleh server.</p>
-        </div>
-
         <div class="flex justify-end gap-2 pt-3 border-t"><button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 text-xs font-bold text-slate-500">Batal</button><button type="submit" class="bg-amethyst-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs"><i class="fa-solid fa-floppy-disk mr-1"></i>Simpan Password</button></div>
       </form>
     </div>
@@ -900,6 +890,16 @@
             <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Akses Kelas</label>
             <input type="text" id="u-akses-kelas" placeholder="All atau Nama Kelas (misal: VII-A)" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm">
           </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lingkup Santri</label>
+          <select id="u-lingkup-santri" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm">
+            <option value="ALL">Semua Santri (Putra &amp; Putri)</option>
+            <option value="PUTRA">Santri Putra — Semua Kelas</option>
+            <option value="PUTRI">Santri Putri — Semua Kelas</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Batas ini berlaku untuk seluruh kelas dan diperiksa kembali oleh server.</p>
         </div>
 
         <div class="flex justify-end gap-2 pt-3 border-t">
@@ -1557,7 +1557,7 @@
         if (res.success) {
           endSaveGuard(); Swal.fire('Berhasil!', res.message, 'success');
           closeAddUserModal();
-          const c=getInitialSyncCache('Pengaturan Pengguna'); if(c&&c.success&&Array.isArray(c.data)){c.data.unshift({id:'NEW',nama:userData.nama,email:userData.email,role:userData.role,status:'Aktif',aksesKelas:userData.aksesKelas});}
+          const c=getInitialSyncCache('Pengaturan Pengguna'); if(c&&c.success&&Array.isArray(c.data)){c.data.unshift({id:'NEW',nama:userData.nama,email:userData.email,role:userData.role,status:'Aktif',aksesKelas:userData.aksesKelas,lingkupSantri:userData.lingkupSantri});}
         } else {
           endSaveGuard(); Swal.fire('Gagal', res.message, 'error');
         }
