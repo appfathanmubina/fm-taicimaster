@@ -2566,7 +2566,25 @@ function formatDateSafe(v){if(!v)return '';try{return Utilities.formatDate(new D
 /* ===== BEGIN WaliKelas.gs ===== */
 /** TAICIMASTER FM — Stage 5 Dashboard, Rekapan Stage 4 Core Modules & Role Permission FINAL v4.0 Reporting FINAL v5.0 — Wali Kelas */
 function simpanCatatanWaliKelas(data,token){var a=requireCapability_(token,'catatan_wali.create');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['santriNama','tanggal','kategori','catatan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama),ac=assertSantriAccess_(a.session,st);if(!ac.ok)return {success:false,message:ac.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal catatan tidak valid.'};if(!cacheDuplicateGuard_('CATATAN_WALI',a.session.id,{santri:st.id||st.nama,tanggal:d.tanggal,kategori:d.kategori,catatan:d.catatan}))return {success:false,code:'DUPLICATE_REQUEST',message:'Permintaan yang sama baru saja diproses. Hindari klik dua kali.'};try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh){sh=SpreadsheetApp.getActiveSpreadsheet().insertSheet('Trx_Catatan_Wali');sh.appendRow(['ID_Catatan','Nama_Santri','Kelas','Tanggal','Kategori','Catatan','Created_By']);}ensureColumn(sh,'ID_Santri');ensureColumn(sh,'Created_At');ensureColumn(sh,'Updated_At');ensureColumn(sh,'Updated_By');var m=headerMap(sh),id=generateRecordId_('CWK'),now=new Date(),row=new Array(sh.getLastColumn()).fill(''),vals={'ID_Catatan':id,'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Kategori':normalizeText_(d.kategori,100),'Catatan':normalizeText_(d.catatan,3000),'Created_By':a.session.name};Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});row[m['ID_Santri']-1]=st.id;row[m['Created_At']-1]=now;row[m['Updated_At']-1]=now;row[m['Updated_By']-1]=a.session.name;sh.appendRow(row);auditLog_(a.session,'CREATE_CATATAN_WALI',id,'Santri='+st.id);queueNewDataPush_('CATATAN_WALI',st,id,'Approved',a.session);return {success:true,idCatatan:id,message:'Catatan Wali Kelas Berhasil Disimpan!'};});}catch(e){return {success:false,message:'Gagal menyimpan catatan: '+e.toString()};}}
-function getRiwayatCatatanWaliKelas(aksesKelas,token){var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();for(var i=d.length-1;i>=1;i--){if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;var k=String(d[i][m['Kelas']-1]||'');if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
+function getRiwayatCatatanWaliKelas(aksesKelas,token){
+  var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;
+  var s=a.session;
+  try{
+    var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');
+    if(!sh)return {success:true,data:[]};
+    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
+    for(var i=d.length-1;i>=1;i--){
+      if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;
+      var sid=m['ID_Santri']?String(d[i][m['ID_Santri']-1]||'').trim():'';
+      var nm=String(d[i][m['Nama_Santri']-1]||'').trim().toLowerCase();
+      var student=(sid&&scopeIndex.byId[sid])||scopeIndex.byName[nm]||null;
+      var kelas=String((m['Kelas']?d[i][m['Kelas']-1]:'')||student&&student.kelas||'').trim();
+      if(s.role==='walikelas'&&s.aksesKelas!=='All'&&kelas.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;
+      o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],kelas:kelas,tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});
+    }
+    return {success:true,data:o};
+  }catch(e){return {success:false,message:e.toString()};}
+}
 
 function getWaliKelasClassSummary(aksesKelas, token) {
   var a = requireCapability_(token, 'catatan_wali.view');

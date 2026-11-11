@@ -539,6 +539,15 @@
               <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-list-check text-amethyst-700"></i> Riwayat Catatan Wali Kelas</h3>
               <button onclick="loadRiwayatCatatanWali(true)" class="text-xs text-amethyst-700 hover:text-amethyst-900 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate"></i> Refresh</button>
             </div>
+            <div class="mb-3 rounded-2xl border border-purple-100 bg-purple-50/50 p-3">
+              <div class="mb-3 flex items-center gap-2"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-amethyst-700"><i class="fa-solid fa-sliders"></i></span><div><h4 class="text-sm font-bold text-slate-800">Filter & Pencarian</h4><p class="text-[11px] text-slate-400">Cari catatan atau saring berdasarkan kelas yang dapat Anda akses.</p></div></div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="relative block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Cari Catatan</span><i class="fa-solid fa-magnifying-glass absolute bottom-3 left-3 text-xs text-slate-400"></i><input id="catatan-wali-search" type="search" autocomplete="off" oninput="filterCatatanWaliList()" placeholder="Nama santri, isi catatan, kategori..." class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"></label>
+                <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Kelas</span><select id="catatan-wali-filter-kelas" onchange="filterCatatanWaliList()" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100"><option value="">Semua Kelas</option></select></label>
+              </div>
+              <div class="mt-2 flex justify-end"><button type="button" onclick="resetCatatanWaliFilters()" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-white hover:text-amethyst-700"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button></div>
+              <p id="catatan-wali-filter-count" class="mt-1 text-[11px] text-slate-400"></p>
+            </div>
             <div id="riwayat-catatan-wk-container" class="space-y-3">
               <p class="text-sm text-slate-400 text-center py-4">Memuat riwayat catatan...</p>
             </div>
@@ -1974,11 +1983,54 @@
 if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.withSuccessHandler(res=>{if(res.success){endSaveGuard();Swal.fire('Berhasil!',res.message,'success');document.getElementById('form-catatanwk').reset();window._editCatatanId=null;updateCachedCatatan(data,res.idCatatan||data.idCatatan);}else{endSaveGuard();Swal.fire('Gagal',res.message,'error');}}).withFailureHandler(err=>{endSaveGuard();Swal.fire('Gagal',err&&err.message||'Gagal menyimpan catatan.','error');}).updateCatatanWaliKelas(data,currentUser.sessionToken);}else TaiciBridge.run.withSuccessHandler(res=>{if(res.success){endSaveGuard();Swal.fire('Berhasil!',res.message,'success');document.getElementById('form-catatanwk').reset();updateCachedCatatan(data,res.idCatatan);}else{endSaveGuard();Swal.fire('Gagal',res.message,'error');}}).withFailureHandler(err=>{endSaveGuard();Swal.fire('Gagal',err&&err.message||'Gagal menyimpan catatan.','error');}).simpanCatatanWaliKelas(data,currentUser.sessionToken);
     }
 
+    function renderCatatanWaliList(){
+      const data=Array.isArray(window._catatanWaliData)?window._catatanWaliData:[];
+      const query=String((document.getElementById('catatan-wali-search')||{}).value||'').trim().toLocaleLowerCase('id');
+      const kelas=String((document.getElementById('catatan-wali-filter-kelas')||{}).value||'').trim().toLocaleLowerCase('id');
+      const filtered=data.filter(c=>{
+        const haystack=[c.santriNama,c.kelas,c.kategori,c.catatan,c.tanggal,c.createdBy].join(' ').toLocaleLowerCase('id');
+        return (!query||haystack.includes(query))&&(!kelas||String(c.kelas||'').trim().toLocaleLowerCase('id')===kelas);
+      });
+      const html=filtered.map(c=>{
+        const p=encObj(c);
+        const actions=canEditModule('catatan_wali')?`<button onclick="editCatatanWali('${p}')" class="inline-flex items-center gap-1.5 rounded-lg border border-amethyst-200 bg-amethyst-50 px-3 py-1.5 text-xs font-semibold text-amethyst-700"><i class="fa-solid fa-pen-to-square"></i><span>Edit</span></button>`:'';
+        const del=canDeleteModule('catatan_wali')?`<button onclick="hapusCatatanWali('${encodeURIComponent(c.idCatatan)}')" class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"><i class="fa-solid fa-trash-can"></i><span>Hapus</span></button>`:'';
+        return `<div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200"><div class="flex flex-wrap justify-between items-center gap-2 mb-1"><span class="text-xs px-2 py-0.5 bg-amethyst-100 text-amethyst-800 rounded font-bold">${escapeHtml(c.kategori||'')}</span><span class="text-[11px] text-slate-400">${escapeHtml(c.tanggal||'')}</span></div><div class="flex flex-wrap items-center gap-2"><p class="text-sm font-bold text-slate-800">${escapeHtml(c.santriNama||'')}</p><span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">${escapeHtml(c.kelas||'Kelas tidak tersedia')}</span></div><p class="text-xs text-slate-600 mt-1">${escapeHtml(c.catatan||'')}</p>${actions||del?`<div class="mt-2 flex flex-wrap gap-2">${actions}${del}</div>`:''}</div>`;
+      }).join('')||(data.length?'<p class="text-sm text-slate-400 text-center py-4">Tidak ada catatan yang sesuai dengan filter.</p>':'<p class="text-sm text-slate-400 text-center py-4">Belum ada catatan wali kelas tersimpan.</p>');
+      ['riwayat-catatan-wk-container','catatan-wali-edit-list'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=html;});
+      const count=document.getElementById('catatan-wali-filter-count');
+      if(count)count.textContent='Menampilkan '+filtered.length+' dari '+data.length+' catatan yang dapat diakses.';
+    }
+    function filterCatatanWaliList(){renderCatatanWaliList();}
+    function resetCatatanWaliFilters(){
+      ['catatan-wali-search','catatan-wali-filter-kelas'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+      renderCatatanWaliList();
+    }
     function loadRiwayatCatatanWali(force=false){
       const cached=getInitialSyncCache('Catatan Wali');
-      const render=res=>{storeInitialSyncCache('Catatan Wali',res);if(!res||!res.success)return;const container=document.getElementById('riwayat-catatan-wk-container'),editContainer=document.getElementById('catatan-wali-edit-list'),data=res.data||[],html=data.map(c=>{const p=encObj(c),actions=canEditModule('catatan_wali')?`<button onclick="editCatatanWali('${p}')" class="inline-flex items-center gap-1.5 rounded-lg border border-amethyst-200 bg-amethyst-50 px-3 py-1.5 text-xs font-semibold text-amethyst-700"><i class="fa-solid fa-pen-to-square"></i><span>Edit</span></button>`:'',del=canDeleteModule('catatan_wali')?`<button onclick="hapusCatatanWali('${encodeURIComponent(c.idCatatan)}')" class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700"><i class="fa-solid fa-trash-can"></i><span>Hapus</span></button>`:'';return `<div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200"><div class="flex justify-between items-center mb-1"><span class="text-xs px-2 py-0.5 bg-amethyst-100 text-amethyst-800 rounded font-bold">${escapeHtml(c.kategori||'')}</span><span class="text-[11px] text-slate-400">${escapeHtml(c.tanggal||'')}</span></div><p class="text-sm font-bold text-slate-800">${escapeHtml(c.santriNama||'')}</p><p class="text-xs text-slate-600 mt-1">${escapeHtml(c.catatan||'')}</p>${actions||del?`<div class="mt-2">${actions}${del}</div>`:''}</div>`;}).join('')||'<p class="text-sm text-slate-400 text-center py-4">Belum ada catatan wali kelas tersimpan.</p>';if(container)container.innerHTML=html;if(editContainer)editContainer.innerHTML=html;};
-      if(!force&&cached){render(cached);return;}if(!force){const el=document.getElementById('riwayat-catatan-wk-container');if(el)el.innerHTML='<p class="text-sm text-amber-700 text-center py-4">'+escapeHtml(showSyncUnavailable('Catatan Wali'))+'</p>';return;}
-      TaiciBridge.run.withSuccessHandler(render).withFailureHandler(err=>{const el=document.getElementById('riwayat-catatan-wk-container');if(el)el.innerHTML='<p class="text-sm text-rose-600 text-center py-4">Gagal memuat Catatan Wali: '+escapeHtml((err&&err.message)||'Sesi/koneksi bermasalah.')+'</p>';}).getRiwayatCatatanWaliKelas(currentUser.aksesKelas,currentUser.sessionToken);
+      const render=res=>{
+        storeInitialSyncCache('Catatan Wali',res);
+        if(!res||!res.success)return;
+        window._catatanWaliData=Array.isArray(res.data)?res.data:[];
+        const kelasSelect=document.getElementById('catatan-wali-filter-kelas');
+        if(kelasSelect){
+          const selected=kelasSelect.value;
+          const kelasList=[...new Set(window._catatanWaliData.map(x=>String(x.kelas||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'id',{numeric:true,sensitivity:'base'}));
+          kelasSelect.innerHTML='<option value="">Semua Kelas</option>'+kelasList.map(k=>'<option value="'+escapeHtml(k)+'">'+escapeHtml(k)+'</option>').join('');
+          if(kelasList.includes(selected))kelasSelect.value=selected;
+        }
+        renderCatatanWaliList();
+      };
+      if(!force&&cached){render(cached);return;}
+      if(!force){
+        const el=document.getElementById('riwayat-catatan-wk-container');
+        if(el)el.innerHTML='<p class="text-sm text-amber-700 text-center py-4">'+escapeHtml(showSyncUnavailable('Catatan Wali'))+'</p>';
+        return;
+      }
+      TaiciBridge.run.withSuccessHandler(render).withFailureHandler(err=>{
+        const el=document.getElementById('riwayat-catatan-wk-container');
+        if(el)el.innerHTML='<p class="text-sm text-rose-600 text-center py-4">Gagal memuat Catatan Wali: '+escapeHtml((err&&err.message)||'Sesi/koneksi bermasalah.')+'</p>';
+      }).getRiwayatCatatanWaliKelas(currentUser.aksesKelas,currentUser.sessionToken);
     }
     function handleSimpanPrestasi(e) {
       e.preventDefault(); if(!beginSaveGuard(e.target,'Menyimpan Prestasi...'))return;
