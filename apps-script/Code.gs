@@ -1731,6 +1731,7 @@ function getPrestasiList(token){
     var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
     for(var i=d.length-1;i>=1;i--){ var access=assertTransactionRowAccess_(a.session,d[i],m,scopeIndex); if(!access.ok) continue; o.push({
       id:d[i][m['ID_Prestasi']-1],santriNama:d[i][m['Nama_Santri']-1],
+      kelas:(function(){var sid=m['ID_Santri']?String(d[i][m['ID_Santri']-1]||'').trim():'';var nm=String(d[i][m['Nama_Santri']-1]||'').trim().toLowerCase();var st=(sid&&scopeIndex.byId[sid])||scopeIndex.byName[nm];return st?st.kelas:'';})(),
       tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'yyyy-MM-dd'):'',
       jenisPrestasi:d[i][m['Jenis_Prestasi']-1],uraian:d[i][m['Uraian_Prestasi']-1],
       tingkatPenghargaan:d[i][m['Tingkat_Penghargaan']-1],tingkatJuara:d[i][m['Tingkat_Juara']-1],
