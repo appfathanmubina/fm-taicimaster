@@ -1457,9 +1457,20 @@ queueNewDataPush_('PELANGGARAN',st,id,'Approved',a.session);try{queueWhatsAppNot
 
 function getPelanggaranList(token){
   var a=requireCapability_(token,'pelanggaran.view'); if(!a.ok)return a.response;
-  try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
-  for(var i=d.length-1;i>=1;i--){var access=assertTransactionRowAccess_(a.session,d[i],m,scopeIndex);if(!access.ok)continue;o.push({id:d[i][m['ID_Pelanggaran']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'yyyy-MM-dd'):'',jenisPelanggaran:d[i][m['Jenis_Pelanggaran']-1],tingkatPelanggaran:d[i][m['Tingkat_Pelanggaran']-1],deskripsi:d[i][m['Deskripsi']-1],kronologi:d[i][m['Kronologi']-1],tindakPembinaan:d[i][m['Tindak_Pembinaan']-1],tindakLanjut:d[i][m['Tindak_Lanjut']-1]});}
-  return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}
+  try{
+    var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran');
+    if(!sh)return {success:true,data:[]};
+    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
+    for(var i=d.length-1;i>=1;i--){
+      var access=assertTransactionRowAccess_(a.session,d[i],m,scopeIndex);if(!access.ok)continue;
+      var sid=m['ID_Santri']?String(d[i][m['ID_Santri']-1]||'').trim():'';
+      var nm=String(d[i][m['Nama_Santri']-1]||'').trim().toLowerCase();
+      var student=(sid&&scopeIndex.byId[sid])||scopeIndex.byName[nm]||null;
+      var kelas=String((m['Kelas']?d[i][m['Kelas']-1]:'')||student&&student.kelas||'').trim();
+      o.push({id:d[i][m['ID_Pelanggaran']-1],santriNama:d[i][m['Nama_Santri']-1],kelas:kelas,tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'yyyy-MM-dd'):'',jenisPelanggaran:d[i][m['Jenis_Pelanggaran']-1],tingkatPelanggaran:d[i][m['Tingkat_Pelanggaran']-1],deskripsi:d[i][m['Deskripsi']-1],kronologi:d[i][m['Kronologi']-1],tindakPembinaan:d[i][m['Tindak_Pembinaan']-1],tindakLanjut:d[i][m['Tindak_Lanjut']-1]});
+    }
+    return {success:true,data:o};
+  }catch(e){return {success:false,message:e.toString()};}
 }
 function updatePelanggaran(data,token){
  var a=requireCapability_(token,'pelanggaran.edit');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['id','santriNama','tanggal','jenisPelanggaran','deskripsi']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var targetAccess=assertSantriAccess_(a.session,st);if(!targetAccess.ok)return {success:false,message:targetAccess.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal tidak valid.'};
