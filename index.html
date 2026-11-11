@@ -399,7 +399,7 @@
         <!-- FORM PRESTASI VIEW -->
         <section id="view-prestasi" class="hidden space-y-6">
           <!-- Ringkasan, filter, dan pencarian Input Prestasi -->
-          <div class="space-y-4">
+          <div id="prestasi-summary-filter" class="space-y-4">
             <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p class="text-[11px] font-extrabold uppercase tracking-[.16em] text-emerald-700">Monitoring Prestasi</p>
@@ -433,7 +433,7 @@
               <div class="mt-3 flex justify-end"><button type="button" onclick="resetPrestasiFilters()" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-amethyst-700"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button></div>
             </div>
           </div>
-          <div class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-emerald-500">
+          <div id="prestasi-form-card" class="glass-card rounded-2xl p-6 shadow-sm border-t-4 border-emerald-500">
             <h2 class="text-xl font-bold text-slate-800 mb-1"><i class="fa-solid fa-trophy text-emerald-600 mr-2"></i>Form Input Prestasi Santri</h2>
             <div id="prestasi-info-note" class="mb-4"></div>
 
@@ -3064,7 +3064,7 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
     /* Stage 11.14: Form modal system. Existing forms are moved into lightweight modal shells; no backend/data logic is changed. */
     let _formModalReturnTab = null;
     const FORM_MODAL_CONFIG = {
-      prestasi: { card:'.glass-card', title:'Buat Form Prestasi Baru', form:'form-prestasi', roles:['superadmin','admin_prestasi','walikelas'] },
+      prestasi: { card:'#prestasi-form-card', title:'Input Prestasi', form:'form-prestasi', roles:['superadmin','admin_prestasi','walikelas'] },
       pelanggaran: { card:'.glass-card', title:'Buat Form Pelanggaran Baru', form:'form-pelanggaran', roles:['superadmin','admin_pelanggaran','admin_perizinan','walikelas'] },
       perizinan: { card:'#form-perizinan-card', title:'Buat Form Perizinan Baru', form:'form-perizinan', roles:['superadmin','admin_perizinan','admin_pelanggaran'] },
       kesehatan: { card:'#form-kesehatan-card', title:'Buat Form Kesehatan Baru', form:null, roles:['superadmin','admin_kesehatan'] },
@@ -3101,7 +3101,7 @@ if(window._editCatatanId){data.idCatatan=window._editCatatanId;TaiciBridge.run.w
         const trigger=document.createElement('button'); trigger.type='button'; trigger.id='tm-form-trigger-'+key; trigger.className='tm-form-trigger mb-1';
         trigger.innerHTML='<i class="fa-solid fa-plus"></i><span class="tm-form-trigger-label">'+c.title.replace('Buat ','')+'</span>';
         trigger.setAttribute('aria-label',c.title); trigger.title=c.title; trigger.onclick=()=>openFormModal(key);
-        view.insertBefore(trigger,view.children[1]||null);
+        if(key==='prestasi'){const anchor=view.querySelector('#prestasi-summary-filter');if(anchor&&anchor.parentNode===view)anchor.insertAdjacentElement('afterend',trigger);else view.insertBefore(trigger,view.children[1]||null);}else view.insertBefore(trigger,view.children[1]||null);
       });
       // Biodata generated form gets its own modal; the search/list remains compact on the page.
       const bioView=document.getElementById('view-biodata'), bioContainer=document.getElementById('bio-form-container');
