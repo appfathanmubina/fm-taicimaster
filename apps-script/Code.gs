@@ -2040,10 +2040,12 @@ function getDashboardAnalytics(token, monthsBack) {
 function getVisibleStudentClassMap_(session) {
   var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');
   var map={}; if(!sh || sh.getLastRow()<=1) return map;
-  var rows=sh.getDataRange().getValues();
+  var rows=sh.getDataRange().getValues(),m=headerMap(sh);
   for(var i=1;i<rows.length;i++){
-    var name=String(rows[i][2]||'').trim(), kelas=String(rows[i][3]||'').trim();
-    if(!name) continue;
+    var name=String(m['Nama_Santri']?rows[i][m['Nama_Santri']-1]:rows[i][2]||'').trim();
+    var kelas=String(m['Kelas']?rows[i][m['Kelas']-1]:rows[i][3]||'').trim();
+    var gender=m['Jenis_Kelamin']?rows[i][m['Jenis_Kelamin']-1]:'';
+    if(!name || !assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gender}).ok) continue;
     if(session.role==='walikelas' && session.aksesKelas!=='All' && String(session.aksesKelas||'').trim() && kelas.toLowerCase()!==String(session.aksesKelas).trim().toLowerCase()) continue;
     map[name.toLowerCase()]=kelas;
   }
