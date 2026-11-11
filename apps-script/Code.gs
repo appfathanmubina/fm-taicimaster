@@ -2856,7 +2856,7 @@ function ensureWebPushDatabase_() {
 function getWebPushRecipients_(santri,type,session) {
   var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users');
   if(!sh||sh.getLastRow()<2)return {wali:[],admins:[],waliKelas:[]};
-  var m=headerMap(sh),data=sh.getDataRange().getValues(),sid=String(santri&&santri.id||'').trim(),studentIds=sid.split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean),studentClass=String(santri&&santri.kelas||'').trim().toLowerCase(),actorId=String(session&&session.id||'').trim();
+  var m=headerMap(sh),data=sh.getDataRange().getValues(),sid=String(santri&&santri.id||'').trim(),studentIds=sid.split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean),studentClass=String(santri&&santri.kelas||'').trim().toLowerCase(),studentGender=normalizeStudentGender_(santri&&santri.jenisKelamin),actorId=String(session&&session.id||'').trim();
   var routes={PRESTASI:['admin_prestasi'],PELANGGARAN:['admin_pelanggaran'],PERIZINAN:['admin_perizinan','admin_pelanggaran'],KESEHATAN:['admin_kesehatan'],CATATAN_WALI:[]},route=routes[type]||[],out={wali:[],admins:[],waliKelas:[]};
   function list(value){return String(value||'').split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean);}
   function add(bucket,id){id=String(id||'').trim();if(id&&id!==actorId)bucket.push({userId:id,externalId:toWebPushExternalId_(id)});}
@@ -2867,9 +2867,13 @@ function getWebPushRecipients_(santri,type,session) {
       var linked=list(m.ID_Santri_Wali?data[i][m.ID_Santri_Wali-1]:'');
       if(studentIds.some(function(x){return linked.indexOf(x)>=0;}))add(out.wali,id);
     }else if(role==='walikelas'){
-      var scope=list(m.Akses_Kelas?data[i][m.Akses_Kelas-1]:''),matches=scope.indexOf('all')>=0||(studentClass&&scope.indexOf(studentClass)>=0);
-      if(matches)add(out.waliKelas,id);
-    }else if(role==='superadmin'||role==='supervisor'||route.indexOf(role)>=0)add(out.admins,id);
+      var classScope=list(m.Akses_Kelas?data[i][m.Akses_Kelas-1]:''),classMatches=classScope.indexOf('all')>=0||(studentClass&&classScope.indexOf(studentClass)>=0);
+      var genderScope=normalizeSantriScope_(m.Lingkup_Santri?data[i][m.Lingkup_Santri-1]:'ALL'),genderMatches=genderScope==='ALL'||(studentGender&&genderScope===studentGender);
+      if(classMatches&&genderMatches)add(out.waliKelas,id);
+    }else if(role==='superadmin'||role==='supervisor'||route.indexOf(role)>=0){
+      var adminScope=normalizeSantriScope_(m.Lingkup_Santri?data[i][m.Lingkup_Santri-1]:'ALL');
+      if(adminScope==='ALL'||(studentGender&&adminScope===studentGender))add(out.admins,id);
+    }
   }
   Object.keys(out).forEach(function(key){var seen={};out[key]=out[key].filter(function(user){if(seen[user.userId])return false;seen[user.userId]=true;return true;});});
   return out;
@@ -2913,7 +2917,8 @@ function queueNewDataPush_(type,santri,eventId,status,session) {
 function getUserNotifications(token,limit){
   var a=requireSessionResult_(token);if(!a.ok)return a.response;var ss=SpreadsheetApp.getActiveSpreadsheet();ensureSheetHeaders(ss,WEB_PUSH.INBOX_SHEET,['ID_Notification','Created_At','User_ID','Santri_ID','Event_ID','Type','Title','Message','URL','Read_At']);
   var sh=ss.getSheetByName(WEB_PUSH.INBOX_SHEET),out=[],max=Math.min(100,Math.max(1,Number(limit||40))),userId=String(a.session.id||''),m=headerMap(sh),data=sh.getDataRange().getValues();
-  for(var i=data.length-1;i>=1&&out.length<max;i--){if(String(data[i][m.User_ID-1]||'')!==userId)continue;out.push({id:String(data[i][m.ID_Notification-1]||''),timestamp:formatDateSafe(data[i][m.Created_At-1]),type:String(data[i][m.Type-1]||''),santriId:String(data[i][m.Santri_ID-1]||''),eventId:String(data[i][m.Event_ID-1]||''),title:String(data[i][m.Title-1]||''),message:String(data[i][m.Message-1]||''),url:String(data[i][m.URL-1]||WEB_PUSH.APP_URL),read:!!data[i][m.Read_At-1],status:data[i][m.Read_At-1]?'Dibaca':'Baru'});}
+  var scopeIndex=buildSantriScopeIndex_();
+  for(var i=data.length-1;i>=1&&out.length<max;i--){if(String(data[i][m.User_ID-1]||'')!==userId)continue;var santriId=String(data[i][m.Santri_ID-1]||'');if(santriId){var student=scopeIndex.byId[santriId];if(!student||!assertSantriAccess_(a.session,student).ok)continue;}out.push({id:String(data[i][m.ID_Notification-1]||''),timestamp:formatDateSafe(data[i][m.Created_At-1]),type:String(data[i][m.Type-1]||''),santriId:santriId,eventId:String(data[i][m.Event_ID-1]||''),title:String(data[i][m.Title-1]||''),message:String(data[i][m.Message-1]||''),url:String(data[i][m.URL-1]||WEB_PUSH.APP_URL),read:!!data[i][m.Read_At-1],status:data[i][m.Read_At-1]?'Dibaca':'Baru'});}
   return {success:true,data:out,unread:out.filter(function(x){return !x.read;}).length};
 }
 
