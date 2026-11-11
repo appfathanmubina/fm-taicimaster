@@ -2250,7 +2250,7 @@ function verifyPassword_(password, stored) {
 function createSession_(user) {
   var token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
   var canonicalRole = (typeof normalizeRole_ === 'function' ? normalizeRole_(user.role) : String(user.role || '').trim().toLowerCase().replace(/[\s-]+/g,'_'));
-  var payload = { id:String(user.id), name:String(user.name), email:String(user.email), role:canonicalRole, aksesKelas:String(user.aksesKelas || 'All'), waliSantriIds:String(user.waliSantriIds || ''), createdAt:Date.now(), expiresAt:Date.now()+SECURITY.SESSION_TTL_SECONDS*1000 };
+  var payload = { id:String(user.id), name:String(user.name), email:String(user.email), role:canonicalRole, aksesKelas:String(user.aksesKelas || 'All'), lingkupSantri:normalizeSantriScope_(user.lingkupSantri), waliSantriIds:String(user.waliSantriIds || ''), createdAt:Date.now(), expiresAt:Date.now()+SECURITY.SESSION_TTL_SECONDS*1000 };
   PropertiesService.getScriptProperties().setProperty(SECURITY.SESSION_PREFIX + token, JSON.stringify(payload));
   return token;
 }
@@ -2533,7 +2533,7 @@ function addNewUser(userData,token) {
 function updateUserSantriScope(userId,scope,token){
   var auth=requireSessionResult_(token,['superadmin']);if(!auth.ok)return auth.response;
   scope=normalizeSantriScope_(scope);
-  try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users');if(!sh)return {success:false,message:'Sheet Data_Users tidak ditemukan.'};var m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++){if(String(rows[i][m['ID_User']-1])!==String(userId))continue;if(!m['Lingkup_Santri'])ensureColumn(sh,'Lingkup_Santri');m=headerMap(sh);sh.getRange(i+1,m['Lingkup_Santri']).setValue(scope);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(auth.session.name);auditLog_(auth.session,'UPDATE_USER_SCOPE',String(userId),'Lingkup='+scope);return {success:true,message:'Lingkup akses pengguna diperbarui menjadi '+scope+'.'};}return {success:false,message:'Pengguna tidak ditemukan.'};}catch(e){return {success:false,message:'Gagal memperbarui lingkup: '+e.toString()};}
+  try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users');if(!sh)return {success:false,message:'Sheet Data_Users tidak ditemukan.'};var m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++){if(String(rows[i][m['ID_User']-1])!==String(userId))continue;if(!m['Lingkup_Santri'])ensureColumn(sh,'Lingkup_Santri');m=headerMap(sh);sh.getRange(i+1,m['Lingkup_Santri']).setValue(scope);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(auth.session.name);revokeRememberTokensForUser_(userId);var props=PropertiesService.getScriptProperties(),all=props.getProperties();Object.keys(all).forEach(function(key){if(key.indexOf(SECURITY.SESSION_PREFIX)!==0)return;try{var p=JSON.parse(all[key]);if(String(p.id)===String(userId))props.deleteProperty(key);}catch(ignore){}});auditLog_(auth.session,'UPDATE_USER_SCOPE',String(userId),'Lingkup='+scope+'; sesi aktif dicabut');return {success:true,message:'Lingkup akses pengguna diperbarui. Pengguna harus login kembali agar pembatasan baru berlaku.'};}return {success:false,message:'Pengguna tidak ditemukan.'};}catch(e){return {success:false,message:'Gagal memperbarui lingkup: '+e.toString()};}
 }
 
 
