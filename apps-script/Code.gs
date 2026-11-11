@@ -944,11 +944,11 @@ function cacheDuplicateGuard_(moduleName, userId, payload) {
 function getSantriRecordByName_(nama) {
   var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');
   if(!sheet) return null;
-  var m=headerMap(sheet), nameCol=m['Nama_Santri'], classCol=m['Kelas'], idCol=m['ID_Santri'];
+  var m=headerMap(sheet), nameCol=m['Nama_Santri'], classCol=m['Kelas'], idCol=m['ID_Santri'], genderCol=m['Jenis_Kelamin'];
   if(!nameCol || !classCol) return null;
   var target=normalizeText_(nama).toLowerCase(), data=sheet.getDataRange().getValues();
   for(var i=1;i<data.length;i++) if(normalizeText_(data[i][nameCol-1]).toLowerCase()===target) {
-    return {row:i+1,id:idCol?normalizeText_(data[i][idCol-1]):'',nama:normalizeText_(data[i][nameCol-1]),kelas:normalizeText_(data[i][classCol-1])};
+    return {row:i+1,id:idCol?normalizeText_(data[i][idCol-1]):'',nama:normalizeText_(data[i][nameCol-1]),kelas:normalizeText_(data[i][classCol-1]),jenisKelamin:genderCol?normalizeStudentGender_(data[i][genderCol-1]):''};
   }
   return null;
 }
@@ -1368,7 +1368,6 @@ function getKesehatanList(role,aksesKelas,token){
       var nama=String(gv(row,'Nama_Santri')||'').trim();
       if(!nama)return;
       var kelas=String(gv(row,'Kelas')||'').trim();
-      if(sess.role==='walikelas' && sess.aksesKelas!=='All' && kelas.toLowerCase()!==String(sess.aksesKelas).toLowerCase())return;
       if(!assertTransactionRowAccess_(sess,row,m,scopeIndex).ok)return;
       var status=gv(row,'Status');
       var statusKes=m['Status_Kesehatan']?String(gv(row,'Status_Kesehatan')||'').trim():(String(status||'').toLowerCase()==='selesai'?'Sudah Sehat':'Belum Sehat');
@@ -1435,7 +1434,7 @@ function bulkMarkKesehatanRecovered(ids,token){
   });}catch(e){return {success:false,message:e.toString()};}
 }
 
-function deleteKesehatan(id,token){var a=requireCapability_(token,'kesehatan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(id)){sh.deleteRow(i+1);auditLog_(a.session,'DELETE_KESEHATAN',String(id),'');return {success:true,message:'Data Kesehatan berhasil dihapus.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+function deleteKesehatan(id,token){var a=requireCapability_(token,'kesehatan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_KESEHATAN',String(id),'');return {success:true,message:'Data Kesehatan berhasil dihapus.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 
@@ -1680,7 +1679,7 @@ function bulkMarkPerizinanReturned(ids,token){
   });}catch(e){return {success:false,message:e.toString()};}
 }
 
-function deletePerizinan(id,token){var a=requireCapability_(token,'perizinan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Perizinan']-1])===String(id)){sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PERIZINAN',String(id),'');return {success:true,message:'Data Perizinan berhasil dihapus.'};}return {success:false,message:'Data Perizinan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+function deletePerizinan(id,token){var a=requireCapability_(token,'perizinan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Perizinan']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PERIZINAN',String(id),'');return {success:true,message:'Data Perizinan berhasil dihapus.'};}return {success:false,message:'Data Perizinan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 
@@ -2549,7 +2548,7 @@ function formatDateSafe(v){if(!v)return '';try{return Utilities.formatDate(new D
 /* ===== BEGIN WaliKelas.gs ===== */
 /** TAICIMASTER FM — Stage 5 Dashboard, Rekapan Stage 4 Core Modules & Role Permission FINAL v4.0 Reporting FINAL v5.0 — Wali Kelas */
 function simpanCatatanWaliKelas(data,token){var a=requireCapability_(token,'catatan_wali.create');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['santriNama','tanggal','kategori','catatan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama),ac=assertSantriAccess_(a.session,st);if(!ac.ok)return {success:false,message:ac.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal catatan tidak valid.'};if(!cacheDuplicateGuard_('CATATAN_WALI',a.session.id,{santri:st.id||st.nama,tanggal:d.tanggal,kategori:d.kategori,catatan:d.catatan}))return {success:false,code:'DUPLICATE_REQUEST',message:'Permintaan yang sama baru saja diproses. Hindari klik dua kali.'};try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh){sh=SpreadsheetApp.getActiveSpreadsheet().insertSheet('Trx_Catatan_Wali');sh.appendRow(['ID_Catatan','Nama_Santri','Kelas','Tanggal','Kategori','Catatan','Created_By']);}ensureColumn(sh,'ID_Santri');ensureColumn(sh,'Created_At');ensureColumn(sh,'Updated_At');ensureColumn(sh,'Updated_By');var m=headerMap(sh),id=generateRecordId_('CWK'),now=new Date(),row=new Array(sh.getLastColumn()).fill(''),vals={'ID_Catatan':id,'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Kategori':normalizeText_(d.kategori,100),'Catatan':normalizeText_(d.catatan,3000),'Created_By':a.session.name};Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});row[m['ID_Santri']-1]=st.id;row[m['Created_At']-1]=now;row[m['Updated_At']-1]=now;row[m['Updated_By']-1]=a.session.name;sh.appendRow(row);auditLog_(a.session,'CREATE_CATATAN_WALI',id,'Santri='+st.id);queueNewDataPush_('CATATAN_WALI',st,id,'Approved',a.session);return {success:true,idCatatan:id,message:'Catatan Wali Kelas Berhasil Disimpan!'};});}catch(e){return {success:false,message:'Gagal menyimpan catatan: '+e.toString()};}}
-function getRiwayatCatatanWaliKelas(aksesKelas,token){var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=d.length-1;i>=1;i--){var k=String(d[i][m['Kelas']-1]||'');if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
+function getRiwayatCatatanWaliKelas(aksesKelas,token){var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();for(var i=d.length-1;i>=1;i--){if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;var k=String(d[i][m['Kelas']-1]||'');if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
 
 function getWaliKelasClassSummary(aksesKelas, token) {
   var a = requireCapability_(token, 'catatan_wali.view');
