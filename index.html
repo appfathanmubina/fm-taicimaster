@@ -539,6 +539,15 @@
               <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-list-check text-amethyst-700"></i> Riwayat Catatan Wali Kelas</h3>
               <button onclick="loadRiwayatCatatanWali(true)" class="text-xs text-amethyst-700 hover:text-amethyst-900 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate"></i> Refresh</button>
             </div>
+            <div class="mb-3 rounded-2xl border border-purple-100 bg-purple-50/50 p-3">
+              <div class="mb-3 flex items-center gap-2"><span class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-amethyst-700"><i class="fa-solid fa-sliders"></i></span><div><h4 class="text-sm font-bold text-slate-800">Filter & Pencarian</h4><p class="text-[11px] text-slate-400">Cari catatan atau saring berdasarkan kelas yang dapat Anda akses.</p></div></div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label class="relative block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Cari Catatan</span><i class="fa-solid fa-magnifying-glass absolute bottom-3 left-3 text-xs text-slate-400"></i><input id="catatan-wali-search" type="search" autocomplete="off" oninput="filterCatatanWaliList()" placeholder="Nama santri, isi catatan, kategori..." class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-purple-300 focus:ring-2 focus:ring-purple-100"></label>
+                <label class="block"><span class="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Kelas</span><select id="catatan-wali-filter-kelas" onchange="filterCatatanWaliList()" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100"><option value="">Semua Kelas</option></select></label>
+              </div>
+              <div class="mt-2 flex justify-end"><button type="button" onclick="resetCatatanWaliFilters()" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 transition hover:bg-white hover:text-amethyst-700"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button></div>
+              <p id="catatan-wali-filter-count" class="mt-1 text-[11px] text-slate-400"></p>
+            </div>
             <div id="riwayat-catatan-wk-container" class="space-y-3">
               <p class="text-sm text-slate-400 text-center py-4">Memuat riwayat catatan...</p>
             </div>
