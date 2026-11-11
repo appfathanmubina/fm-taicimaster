@@ -1657,7 +1657,7 @@ function getPerizinanList(role,aksesKelas,token){
   try{
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan');
     if(!sh)return {success:false,message:'Sheet Trx_Perizinan tidak ditemukan. Jalankan inisialisasi database terlebih dahulu.'};
-    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
+    ['Status_Kembali','Returned_At','Returned_By'].forEach(function(h){ensureColumn(sh,h);});var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
     function gv(row,name){return m[name]?row[m[name]-1]:'';}
     for(var i=d.length-1;i>=1;i--){
       if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;
@@ -1688,18 +1688,37 @@ function getPerizinanList(role,aksesKelas,token){
 
 function bulkMarkPerizinanReturned(ids,token){
   var a=requireCapability_(token,'perizinan.edit');if(!a.ok)return a.response;
-  ids=Array.isArray(ids)?ids.map(String).filter(Boolean):[];if(!ids.length)return {success:false,message:'Pilih minimal satu data perizinan.'};
-  try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues(),set={};ids.forEach(function(id){set[id]=true;});var count=0,now=new Date();
-    for(var i=1;i<rows.length;i++){var id=String(rows[i][m['ID_Perizinan']-1]||'');if(!set[id])continue;var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};
-      if(m['Status_Kembali'])sh.getRange(i+1,m['Status_Kembali']).setValue('Sudah Kembali');
-      if(m['Returned_At'])sh.getRange(i+1,m['Returned_At']).setValue(now);
-      if(m['Returned_By'])sh.getRange(i+1,m['Returned_By']).setValue(a.session.name);
-      if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(now);
-      if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);count++;
+  ids=Array.isArray(ids)?Array.from(new Set(ids.map(function(id){return String(id||'').trim();}).filter(Boolean))):[];
+  if(!ids.length)return {success:false,message:'Pilih minimal satu data perizinan.'};
+  try{return withDataLock_(function(){
+    var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan');
+    if(!sh)return {success:false,message:'Sheet Trx_Perizinan tidak ditemukan.'};
+    ['Status_Kembali','Returned_At','Returned_By','Updated_At','Updated_By'].forEach(function(h){ensureColumn(sh,h);});
+    var m=headerMap(sh),rows=sh.getDataRange().getValues(),wanted={},matched={},targets=[];
+    if(!m['ID_Perizinan'])return {success:false,message:'Kolom ID_Perizinan tidak ditemukan.'};
+    ids.forEach(function(id){wanted[id]=true;});
+    for(var i=1;i<rows.length;i++){
+      var id=String(rows[i][m['ID_Perizinan']-1]||'').trim();
+      if(!wanted[id])continue;
+      var access=assertTransactionRowAccess_(a.session,rows[i],m);
+      if(!access.ok)return {success:false,message:access.message};
+      targets.push(i+1);matched[id]=true;
     }
-    auditLog_(a.session,'BULK_RETURN_PERIZINAN',ids.join(','),'Jumlah='+count);
-    return {success:true,count:count,message:count+' data santri ditandai sudah kembali.'};
-  });}catch(e){return {success:false,message:e.toString()};}
+    var missing=ids.filter(function(id){return !matched[id];});
+    if(missing.length)return {success:false,message:'Sebagian data perizinan tidak ditemukan atau sudah tidak dapat diakses. Tidak ada perubahan yang diterapkan.'};
+    if(targets.length!==ids.length)return {success:false,message:'Jumlah data yang cocok tidak sesuai. Tidak ada perubahan yang diterapkan.'};
+    var now=new Date();
+    targets.forEach(function(row){
+      sh.getRange(row,m['Status_Kembali']).setValue('Sudah Kembali');
+      sh.getRange(row,m['Returned_At']).setValue(now);
+      sh.getRange(row,m['Returned_By']).setValue(a.session.name);
+      if(m['Updated_At'])sh.getRange(row,m['Updated_At']).setValue(now);
+      if(m['Updated_By'])sh.getRange(row,m['Updated_By']).setValue(a.session.name);
+    });
+    SpreadsheetApp.flush();
+    auditLog_(a.session,'BULK_RETURN_PERIZINAN',ids.join(','),'Jumlah='+targets.length);
+    return {success:true,count:targets.length,updatedIds:ids,message:targets.length+' data santri berhasil ditandai sudah kembali.'};
+  });}catch(e){return {success:false,message:'Gagal memperbarui status kembali: '+e.toString()};}
 }
 
 function deletePerizinan(id,token){var a=requireCapability_(token,'perizinan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Perizinan']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PERIZINAN',String(id),'');return {success:true,message:'Data Perizinan berhasil dihapus.'};}return {success:false,message:'Data Perizinan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
