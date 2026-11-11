@@ -617,10 +617,12 @@
                       <th class="p-3 border">Email / Username</th>
                       <th class="p-3 border">Role</th>
                       <th class="p-3 border">Status</th>
+                      <th class="p-3 border">Lingkup Santri</th>
+                      <th class="p-3 border">Aksi</th>
                     </tr>
                   </thead>
                   <tbody id="user-list-table-body">
-                    <tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat data user...</td></tr>
+                    <tr><td colspan="7" class="p-4 text-center text-slate-400">Memuat data user...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -834,6 +836,16 @@
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password Lama *</label><input type="password" id="cp-old" required autocomplete="current-password" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password Baru *</label><input type="password" id="cp-new" required minlength="6" autocomplete="new-password" placeholder="Minimal 6 karakter" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
         <div><label class="block text-xs font-bold text-slate-700 uppercase mb-1">Konfirmasi Password Baru *</label><input type="password" id="cp-confirm" required minlength="6" autocomplete="new-password" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm"></div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Lingkup Santri</label>
+          <select id="u-lingkup-santri" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm">
+            <option value="ALL">Semua Santri (Putra &amp; Putri)</option>
+            <option value="PUTRA">Santri Putra — Semua Kelas</option>
+            <option value="PUTRI">Santri Putri — Semua Kelas</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Batas ini berlaku untuk seluruh kelas dan diperiksa kembali oleh server.</p>
+        </div>
+
         <div class="flex justify-end gap-2 pt-3 border-t"><button type="button" onclick="closeChangePasswordModal()" class="px-4 py-2 text-xs font-bold text-slate-500">Batal</button><button type="submit" class="bg-amethyst-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs"><i class="fa-solid fa-floppy-disk mr-1"></i>Simpan Password</button></div>
       </form>
     </div>
@@ -1517,7 +1529,7 @@
 
     function loadUserList(force=false){
       const cached=getInitialSyncCache('Pengaturan Pengguna');
-      const render=res=>{storeInitialSyncCache('Pengaturan Pengguna',res);const tbody=document.getElementById('user-list-table-body');if(!tbody||!res||!res.success)return;tbody.innerHTML='';(res.data||[]).forEach(u=>{tbody.innerHTML+=`<tr class="border-b"><td class="p-3 font-bold">${escapeHtml(u.id)}</td><td class="p-3">${escapeHtml(u.nama)}</td><td class="p-3 text-slate-600">${escapeHtml(u.email)}</td><td class="p-3"><span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded font-bold uppercase">${escapeHtml(u.role)}</span></td><td class="p-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">${escapeHtml(u.status)}</span></td></tr>`;});};
+      const render=res=>{storeInitialSyncCache('Pengaturan Pengguna',res);const tbody=document.getElementById('user-list-table-body');if(!tbody||!res||!res.success)return;tbody.innerHTML='';(res.data||[]).forEach(u=>{tbody.innerHTML+=`<tr class="border-b"><td class="p-3 font-bold">${escapeHtml(u.id)}</td><td class="p-3">${escapeHtml(u.nama)}</td><td class="p-3 text-slate-600">${escapeHtml(u.email)}</td><td class="p-3"><span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded font-bold uppercase">${escapeHtml(u.role)}</span></td><td class="p-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-bold">${escapeHtml(u.status)}</span></td><td class="p-3 text-xs font-semibold">${escapeHtml(u.lingkupSantri||'ALL')}</td><td class="p-3"><button type="button" onclick="changeUserSantriScope('${encodeURIComponent(String(u.id))}','${escapeHtml(u.lingkupSantri||'ALL')}')" class="text-xs font-bold text-amethyst-700 hover:underline">Atur Lingkup</button></td></tr>`;});};
       if(!force&&cached&&cached.success!==false){render(cached);return;}
       google.script.run.withSuccessHandler(render).withFailureHandler(err=>{const t=document.getElementById('user-list-table-body');if(t)t.innerHTML='<tr><td colspan="5" class="p-4 text-center text-rose-600">Gagal memuat user: '+escapeHtml((err&&err.message)||'Sesi/koneksi bermasalah.')+'</td></tr>';}).getUserList(currentUser.sessionToken);
     }
@@ -1535,7 +1547,8 @@
         password: document.getElementById('u-password').value,
         role: document.getElementById('u-role').value,
         idSantriWali: document.getElementById('u-id-santri-wali') ? document.getElementById('u-id-santri-wali').value.trim() : '',
-        aksesKelas: document.getElementById('u-akses-kelas').value || 'All'
+        aksesKelas: document.getElementById('u-akses-kelas').value || 'All',
+        lingkupSantri: document.getElementById('u-lingkup-santri').value || 'ALL'
       };
 
       if(!beginSaveGuard(e.target,'Menyimpan User...'))return;
@@ -1549,6 +1562,18 @@
           endSaveGuard(); Swal.fire('Gagal', res.message, 'error');
         }
       }).withFailureHandler(err=>{endSaveGuard();Swal.fire('Gagal',err&&err.message||'Gagal menyimpan user.','error');}).addNewUser(userData, currentUser.sessionToken);
+    }
+
+    function changeUserSantriScope(encodedId,currentScope){
+      const userId=decodeURIComponent(encodedId||'');
+      Swal.fire({title:'Atur Lingkup Santri',text:'Pengguna hanya akan melihat data santri sesuai lingkup yang dipilih, di semua kelas.',input:'select',inputOptions:{ALL:'Semua Santri (Putra & Putri)',PUTRA:'Santri Putra — Semua Kelas',PUTRI:'Santri Putri — Semua Kelas'},inputValue:currentScope||'ALL',showCancelButton:true,confirmButtonText:'Simpan',cancelButtonText:'Batal',inputValidator:value=>value?'':'Pilih lingkup akses.'}).then(result=>{
+        if(!result.isConfirmed)return;
+        Swal.fire({title:'Menyimpan pengaturan...',allowOutsideClick:false,didOpen:()=>Swal.showLoading()});
+        google.script.run.withSuccessHandler(res=>{
+          Swal.fire(res&&res.success?'Berhasil':'Gagal',res&&res.message||'Pengaturan lingkup tidak dapat disimpan.',res&&res.success?'success':'error');
+          if(res&&res.success){const cache=getInitialSyncCache('Pengaturan Pengguna');if(cache&&Array.isArray(cache.data)){const row=cache.data.find(x=>String(x.id)===String(userId));if(row)row.lingkupSantri=result.value;}loadUserList(true);}
+        }).withFailureHandler(err=>Swal.fire('Gagal',escapeHtml(err&&err.message||'Gagal memperbarui lingkup.'),'error')).updateUserSantriScope(userId,result.value,currentUser.sessionToken);
+      });
     }
 
     function toggleFeature(featName, isChecked) {
