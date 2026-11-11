@@ -21,7 +21,7 @@ function authenticateUser(emailOrUsername, password, rememberMe) {
         if(String(row[3]).indexOf('v1$sha256$')!==0) migrateLegacyPassword_(sheet,i+1,password);
         clearLoginGuard_(guard);
         sheet.getRange(i+1,9).setValue(0); sheet.getRange(i+1,10).clearContent(); sheet.getRange(i+1,11).setValue(new Date()); if(headerMap(sheet)['Updated_At'])sheet.getRange(i+1,headerMap(sheet)['Updated_At']).setValue(new Date()); if(headerMap(sheet)['Updated_By'])sheet.getRange(i+1,headerMap(sheet)['Updated_By']).setValue(row[1]);
-        var um=headerMap(sheet); var canonicalRole=(typeof normalizeRole_==='function'?normalizeRole_(row[4]):String(row[4]||'').trim().toLowerCase().replace(/[\s-]+/g,'_')); var user={id:row[0],name:row[1],email:row[2],role:canonicalRole,aksesKelas:row[6]||'All',waliSantriIds:um['ID_Santri_Wali']?String(row[um['ID_Santri_Wali']-1]||''):''};
+        var um=headerMap(sheet); var canonicalRole=(typeof normalizeRole_==='function'?normalizeRole_(row[4]):String(row[4]||'').trim().toLowerCase().replace(/[\s-]+/g,'_')); var user={id:row[0],name:row[1],email:row[2],role:canonicalRole,aksesKelas:row[6]||'All',lingkupSantri:normalizeSantriScope_(um['Lingkup_Santri']?row[um['Lingkup_Santri']-1]:'ALL'),waliSantriIds:um['ID_Santri_Wali']?String(row[um['ID_Santri_Wali']-1]||''):''};
         var token=createSession_(user); auditLog_({id:user.id,name:user.name,role:user.role},'LOGIN','SESSION','Login berhasil');
         var rememberToken = rememberMe ? createRememberToken_(user) : '';
         // Sertakan konfigurasi yang biasanya diminta lewat panggilan kedua setelah login.
@@ -403,6 +403,8 @@ function getBiodataSantri(nama, role, aksesKelas, token){
       var rowName=String(m['Nama_Santri']?d[i][m['Nama_Santri']-1]:'').trim();
       if(rowName.toLowerCase()!==target)continue;
       var kelas=String(m['Kelas']?d[i][m['Kelas']-1]:'').trim();
+      var scopeCheck=assertSantriAccess_(s,{kelas:kelas,jenisKelamin:m['Jenis_Kelamin']?d[i][m['Jenis_Kelamin']-1]:''});
+      if(!scopeCheck.ok)return {success:false,message:scopeCheck.message};
       if(s.role==='walikelas' && s.aksesKelas!=='All' && kelas.toLowerCase()!==String(s.aksesKelas||'').trim().toLowerCase())
         return {success:false,message:'Anda hanya dapat mengakses biodata santri pada kelas yang menjadi tanggung jawab Anda.'};
       var data={};
@@ -432,6 +434,7 @@ function getBiodataCompletenessWaliKelas(token){
     var m=headerMap(sh), rows=sh.getDataRange().getValues(), out=[];
     for(var i=1;i<rows.length;i++){
       var kelas=String(m['Kelas']?rows[i][m['Kelas']-1]:'').trim();
+      if(!assertSantriAccess_(a.session,{kelas:kelas,jenisKelamin:m['Jenis_Kelamin']?rows[i][m['Jenis_Kelamin']-1]:''}).ok)continue;
       if(a.session.role==='walikelas' && a.session.aksesKelas!=='All' &&
          kelas.toLowerCase()!==String(a.session.aksesKelas||'').trim().toLowerCase()) continue;
       var c=biodataCompleteness_(rows[i],m);
@@ -770,28 +773,36 @@ function getDashboardStats(role, aksesKelas, searchName, filterType, token) {
     var sheetPelanggaran = ss.getSheetByName('Trx_Pelanggaran');
     var sheetCatatan = ss.getSheetByName('Trx_Catatan_Wali');
     var santriData = sheetSantri ? sheetSantri.getDataRange().getValues() : [];
-    var classSantriList = [], santriClassMap = {};
-
+    var classSantriList = [], santriClassMap = {}, santriGenderMap = {}, santriVisibleMap = {};
+    var santriMap = sheetSantri ? headerMap(sheetSantri) : {};
     for (var i = 1; i < santriData.length; i++) {
-      var nama = String(santriData[i][2] || '').trim();
-      var kelas = String(santriData[i][3] || '').trim();
-      if (nama) santriClassMap[nama.toLowerCase()] = kelas;
-      if (role === 'walikelas' && aksesKelas !== 'All' && aksesKelas !== '' &&
-          kelas.toLowerCase() === String(aksesKelas).trim().toLowerCase()) classSantriList.push(nama);
+      var nama = String(santriMap['Nama_Santri'] ? santriData[i][santriMap['Nama_Santri']-1] : santriData[i][2] || '').trim();
+      var kelas = String(santriMap['Kelas'] ? santriData[i][santriMap['Kelas']-1] : santriData[i][3] || '').trim();
+      var gender = santriMap['Jenis_Kelamin'] ? santriData[i][santriMap['Jenis_Kelamin']-1] : '';
+      if (!nama) continue;
+      santriClassMap[nama.toLowerCase()] = kelas;
+      santriGenderMap[nama.toLowerCase()] = gender;
+      var allowedStudent=assertSantriAccess_(_session,{kelas:kelas,jenisKelamin:gender}).ok &&
+        (role!=='walikelas'||aksesKelas==='All'||aksesKelas===''||kelas.toLowerCase()===String(aksesKelas).trim().toLowerCase());
+      if(allowedStudent){santriVisibleMap[nama.toLowerCase()]=true;classSantriList.push(nama);}
     }
 
-    var totalSantri = (role === 'walikelas' && aksesKelas !== 'All' && aksesKelas !== '') ?
-      classSantriList.length : Math.max(0, santriData.length - 1);
-    var totalPrestasi = sheetPrestasi ? Math.max(0, sheetPrestasi.getLastRow() - 1) : 0;
-    var totalPelanggaran = sheetPelanggaran ? Math.max(0, sheetPelanggaran.getLastRow() - 1) : 0;
+    var totalSantri = classSantriList.length;
+    function countVisibleRows(sheet, nameHeader) {
+      if(!sheet||sheet.getLastRow()<=1)return 0;
+      var rows=sheet.getDataRange().getValues(),m=headerMap(sheet),col=m[nameHeader]||2,count=0;
+      for(var ri=1;ri<rows.length;ri++){var n=String(rows[ri][col-1]||'').trim().toLowerCase();if(n&&santriVisibleMap[n])count++;}
+      return count;
+    }
+    var totalPrestasi = countVisibleRows(sheetPrestasi,'Nama_Santri');
+    var totalPelanggaran = countVisibleRows(sheetPelanggaran,'Nama_Santri');
     var recentActivities = [];
     var search = String(searchName || '').trim().toLowerCase();
     var filter = String(filterType || 'ALL').toUpperCase();
 
     function visible(name, type) {
       var n = String(name || '').trim();
-      var classAllowed = role !== 'walikelas' || aksesKelas === 'All' || aksesKelas === '' ||
-        String(santriClassMap[n.toLowerCase()] || '').toLowerCase() === String(aksesKelas).trim().toLowerCase();
+      var classAllowed = !!santriVisibleMap[n.toLowerCase()];
       return classAllowed && (!search || n.toLowerCase().indexOf(search) !== -1) &&
         (filter === 'ALL' || filter === type);
     }
@@ -846,6 +857,7 @@ function sendNotificationEmail(tipe, santriNama, kategori, detail, token) {
   var _session=_auth.session;
   var role=_session.role; var aksesKelas=_session.aksesKelas;
   try {
+    var targetSantri=getSantriRecordByName_(santriNama),targetAccess=assertSantriAccess_(_session,targetSantri);if(!targetAccess.ok)return targetAccess;
     var recipient = Session.getActiveUser().getEmail();
     var subject = '[' + tipe + ' SANTRI] Catatan Baru: ' + santriNama;
     var color = tipe === 'PRESTASI' ? '#059669' : '#DC2626';
@@ -879,10 +891,10 @@ function getDashboardTodayInfo(role, aksesKelas, token) {
   var session=auth.session;
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), tz=Session.getScriptTimeZone(), today=Utilities.formatDate(new Date(),tz,'yyyy-MM-dd');
-    var classMap={}, san=ss.getSheetByName('Data_Santri');
-    if(san){var sd=san.getDataRange().getValues(),sm=headerMap(san);for(var i=1;i<sd.length;i++){var n=sm['Nama_Santri']?String(sd[i][sm['Nama_Santri']-1]||'').trim():'';var k=sm['Kelas']?String(sd[i][sm['Kelas']-1]||'').trim():'';if(n)classMap[n.toLowerCase()]=k;}}
+    var classMap={},genderMap={}, san=ss.getSheetByName('Data_Santri');
+    if(san){var sd=san.getDataRange().getValues(),sm=headerMap(san);for(var i=1;i<sd.length;i++){var n=sm['Nama_Santri']?String(sd[i][sm['Nama_Santri']-1]||'').trim():'';var k=sm['Kelas']?String(sd[i][sm['Kelas']-1]||'').trim():'';if(n){classMap[n.toLowerCase()]=k;genderMap[n.toLowerCase()]=sm['Jenis_Kelamin']?sd[i][sm['Jenis_Kelamin']-1]:'';}}}
     function dk(v){if(!v)return '';var d=v instanceof Date?v:new Date(v);if(isNaN(d.getTime())){var m=String(v).match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);return m?m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2):'';}return Utilities.formatDate(d,tz,'yyyy-MM-dd');}
-    function allowed(n,k){if(session.role!=='walikelas')return true;var target=String(session.aksesKelas||'All').trim();return !target||target==='All'||String(k||classMap[String(n||'').toLowerCase()]||'').trim().toLowerCase()===target.toLowerCase();}
+    function allowed(n,k){var key=String(n||'').trim().toLowerCase(),kelas=String(k||classMap[key]||'').trim();var scopeCheck=assertSantriAccess_(session,{kelas:kelas,jenisKelamin:genderMap[key]||''});if(!scopeCheck.ok)return false;var target=String(session.aksesKelas||'All').trim();return session.role!=='walikelas'||!target||target==='All'||kelas.toLowerCase()===target.toLowerCase();}
     function read(sheetName,start,end,status,excluded,type){var sh=ss.getSheetByName(sheetName);if(!sh)return [];var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=1;i<d.length;i++){var n=m['Nama_Santri']?String(d[i][m['Nama_Santri']-1]||'').trim():'';if(!n)continue;var k=m['Kelas']?String(d[i][m['Kelas']-1]||'').trim():classMap[n.toLowerCase()]||'';if(!allowed(n,k))continue;var ok=false;if(end){var a=dk(m[start]?d[i][m[start]-1]:''),b=dk(m[end]?d[i][m[end]-1]:'');ok=!!a&&!!b&&a<=today&&today<=b;}else ok=dk(m[start]?d[i][m[start]-1]:'')===today;if(!ok)continue;if(status&&m[status]&&excluded&&excluded.length){var st=String(d[i][m[status]-1]||'').toLowerCase();if(excluded.indexOf(st)>=0)continue;}o.push({nama:n,kelas:k,type:type});}return o;}
     var izin=read('Trx_Perizinan','Mulai','Selesai','Status',['ditolak'],'izin');
     var sakit=read('Trx_Kesehatan','Tanggal',null,'',[],'sakit');
@@ -944,18 +956,36 @@ function cacheDuplicateGuard_(moduleName, userId, payload) {
 function getSantriRecordByName_(nama) {
   var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');
   if(!sheet) return null;
-  var m=headerMap(sheet), nameCol=m['Nama_Santri'], classCol=m['Kelas'], idCol=m['ID_Santri'];
+  var m=headerMap(sheet), nameCol=m['Nama_Santri'], classCol=m['Kelas'], idCol=m['ID_Santri'], genderCol=m['Jenis_Kelamin'];
   if(!nameCol || !classCol) return null;
   var target=normalizeText_(nama).toLowerCase(), data=sheet.getDataRange().getValues();
   for(var i=1;i<data.length;i++) if(normalizeText_(data[i][nameCol-1]).toLowerCase()===target) {
-    return {row:i+1,id:idCol?normalizeText_(data[i][idCol-1]):'',nama:normalizeText_(data[i][nameCol-1]),kelas:normalizeText_(data[i][classCol-1])};
+    return {row:i+1,id:idCol?normalizeText_(data[i][idCol-1]):'',nama:normalizeText_(data[i][nameCol-1]),kelas:normalizeText_(data[i][classCol-1]),jenisKelamin:genderCol?normalizeStudentGender_(data[i][genderCol-1]):''};
   }
   return null;
 }
 
+function normalizeSantriScope_(value) {
+  var v=String(value||'ALL').trim().toUpperCase();
+  if(v==='PUTRA'||v==='L'||v==='LAKI-LAKI'||v==='LAKI LAKI')return 'PUTRA';
+  if(v==='PUTRI'||v==='P'||v==='PEREMPUAN'||v==='WANITA')return 'PUTRI';
+  return 'ALL';
+}
+function normalizeStudentGender_(value) {
+  var v=String(value||'').trim().toUpperCase();
+  if(/^(L|LAKI[- ]?LAKI|PUTRA|MALE|PRIA)$/.test(v))return 'PUTRA';
+  if(/^(P|PEREMPUAN|PUTRI|FEMALE|WANITA)$/.test(v))return 'PUTRI';
+  return '';
+}
 function assertSantriAccess_(session, santri) {
+  if (!session) return {ok:false,message:'Sesi tidak valid.'};
   if (!santri) return {ok:false,message:'Santri tidak ditemukan.'};
-  if (session.role==='walikelas' && normalizeText_(session.aksesKelas)!=='All' && normalizeText_(session.aksesKelas).toLowerCase()!==santri.kelas.toLowerCase()) return {ok:false,message:'Anda tidak memiliki akses ke kelas santri tersebut.'};
+  var scope=normalizeSantriScope_(session.lingkupSantri);
+  if(scope!=='ALL') {
+    var gender=normalizeStudentGender_(santri.jenisKelamin||santri.jenis_kelamin||santri.gender);
+    if(!gender || gender!==scope)return {ok:false,message:'Akses dibatasi untuk santri '+(scope==='PUTRA'?'Putra':'Putri')+'.'};
+  }
+  if (session.role==='walikelas' && normalizeText_(session.aksesKelas)!=='All' && normalizeText_(session.aksesKelas).toLowerCase()!==normalizeText_(santri.kelas).toLowerCase()) return {ok:false,message:'Anda tidak memiliki akses ke kelas santri tersebut.'};
   return {ok:true};
 }
 
@@ -965,12 +995,12 @@ function buildSantriScopeIndex_() {
   var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');
   var out={byId:{},byName:{}};
   if(!sh || sh.getLastRow()<=1) return out;
-  var d=sh.getDataRange().getValues(),m=headerMap(sh),idCol=m['ID_Santri']||0,nameCol=m['Nama_Santri']||0,classCol=m['Kelas']||0;
+  var d=sh.getDataRange().getValues(),m=headerMap(sh),idCol=m['ID_Santri']||0,nameCol=m['Nama_Santri']||0,classCol=m['Kelas']||0,genderCol=m['Jenis_Kelamin']||0;
   if(!nameCol || !classCol) return out;
   for(var i=1;i<d.length;i++){
     var id=idCol?normalizeText_(d[i][idCol-1]):'', name=normalizeText_(d[i][nameCol-1]), kelas=normalizeText_(d[i][classCol-1]);
     if(!name || !kelas) continue;
-    var rec={id:id,nama:name,kelas:kelas};
+    var rec={id:id,nama:name,kelas:kelas,jenisKelamin:genderCol?normalizeStudentGender_(d[i][genderCol-1]):''};
     if(id) out.byId[id]=rec;
     out.byName[name.toLowerCase()]=rec;
   }
@@ -979,13 +1009,15 @@ function buildSantriScopeIndex_() {
 
 function assertTransactionRowAccess_(session,row,rowMap,index) {
   if(!session) return {ok:false,message:'Sesi tidak valid.'};
-  if(session.role!=='walikelas' || normalizeText_(session.aksesKelas)==='All') return {ok:true};
+  var needsClass=session.role==='walikelas' && normalizeText_(session.aksesKelas)!=='All';
+  var needsGender=normalizeSantriScope_(session.lingkupSantri)!=='ALL';
+  if(!needsClass && !needsGender)return {ok:true};
   var id=rowMap && rowMap['ID_Santri'] ? normalizeText_(row[rowMap['ID_Santri']-1]) : '';
   var nama=rowMap && rowMap['Nama_Santri'] ? normalizeText_(row[rowMap['Nama_Santri']-1]) : '';
   var idx=index || buildSantriScopeIndex_();
   var st=(id && idx.byId[id]) || (nama && idx.byName[nama.toLowerCase()]);
   if(!st) return {ok:false,message:'Santri pada data tidak ditemukan dalam Data_Santri.'};
-  if(normalizeText_(st.kelas).toLowerCase()!==normalizeText_(session.aksesKelas).toLowerCase()) return {ok:false,message:'Anda tidak memiliki akses ke data kelas tersebut.'};
+  var check=assertSantriAccess_(session,st); if(!check.ok)return check;
   return {ok:true};
 }
 
@@ -1333,7 +1365,7 @@ function appendDetailGroup_(body, title, items, fg, bg) {
 
 /* ===== BEGIN Kesehatan.gs ===== */
 /** TAICIMASTER FM — Stage 5 Dashboard, Rekapan Stage 4 Core Modules & Role Permission FINAL v4.0 Reporting FINAL v5.0 — Kesehatan */
-function simpanKesehatan(data,token){var a=requireCapability_(token,'kesehatan.create');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['santriNama','tanggal','keluhan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal pemeriksaan tidak valid.'};if(!cacheDuplicateGuard_('KESEHATAN',a.session.id,{santri:st.id||st.nama,tanggal:d.tanggal,keluhan:d.keluhan}))return {success:false,code:'DUPLICATE_REQUEST',message:'Permintaan yang sama baru saja diproses. Hindari klik dua kali.'};try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),now=new Date(),id=generateRecordId_('KES'),vals={'ID_Kesehatan':id,'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Keluhan':normalizeText_(d.keluhan,1000),'Pemeriksaan':normalizeText_(d.pemeriksaan,2000),'Diagnosa':normalizeText_(d.diagnosa,1000),'Tindakan':normalizeText_(d.tindakan,2000),'Obat':normalizeText_(d.obat,1000),'Suhu':d.suhu||'','Berat_Badan':d.beratBadan||'','Status':normalizeText_(d.status,100),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,1000),'Status_Kesehatan':'Belum Sehat','Created_By':a.session.name,'Created_At':now};var row=new Array(sh.getLastColumn()).fill('');Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});if(m['ID_Santri'])row[m['ID_Santri']-1]=st.id;if(m['Updated_At'])row[m['Updated_At']-1]=now;if(m['Updated_By'])row[m['Updated_By']-1]=a.session.name;sh.appendRow(row);auditLog_(a.session,'CREATE_KESEHATAN',id,'Santri='+st.id);queueNewDataPush_('KESEHATAN',st,id,'Approved',a.session);try{queueWhatsAppNotification_('KESEHATAN',st,id,{category:'Pemeriksaan Kesehatan',status:d.status||'Tercatat',detail:d.keluhan},a.session);}catch(e){}return {success:true,idKesehatan:id,message:'Data pemeriksaan kesehatan berhasil disimpan.'};});}catch(e){return {success:false,message:e.toString()};}}
+function simpanKesehatan(data,token){var a=requireCapability_(token,'kesehatan.create');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['santriNama','tanggal','keluhan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var access=assertSantriAccess_(a.session,st);if(!access.ok)return {success:false,message:access.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal pemeriksaan tidak valid.'};if(!cacheDuplicateGuard_('KESEHATAN',a.session.id,{santri:st.id||st.nama,tanggal:d.tanggal,keluhan:d.keluhan}))return {success:false,code:'DUPLICATE_REQUEST',message:'Permintaan yang sama baru saja diproses. Hindari klik dua kali.'};try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),now=new Date(),id=generateRecordId_('KES'),vals={'ID_Kesehatan':id,'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Keluhan':normalizeText_(d.keluhan,1000),'Pemeriksaan':normalizeText_(d.pemeriksaan,2000),'Diagnosa':normalizeText_(d.diagnosa,1000),'Tindakan':normalizeText_(d.tindakan,2000),'Obat':normalizeText_(d.obat,1000),'Suhu':d.suhu||'','Berat_Badan':d.beratBadan||'','Status':normalizeText_(d.status,100),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,1000),'Status_Kesehatan':'Belum Sehat','Created_By':a.session.name,'Created_At':now};var row=new Array(sh.getLastColumn()).fill('');Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});if(m['ID_Santri'])row[m['ID_Santri']-1]=st.id;if(m['Updated_At'])row[m['Updated_At']-1]=now;if(m['Updated_By'])row[m['Updated_By']-1]=a.session.name;sh.appendRow(row);auditLog_(a.session,'CREATE_KESEHATAN',id,'Santri='+st.id);queueNewDataPush_('KESEHATAN',st,id,'Approved',a.session);try{queueWhatsAppNotification_('KESEHATAN',st,id,{category:'Pemeriksaan Kesehatan',status:d.status||'Tercatat',detail:d.keluhan},a.session);}catch(e){}return {success:true,idKesehatan:id,message:'Data pemeriksaan kesehatan berhasil disimpan.'};});}catch(e){return {success:false,message:e.toString()};}}
 function getKesehatanList(role,aksesKelas,token){
   var a=requireCapability_(token,'kesehatan.view');
   if(!a.ok)return a.response;
@@ -1341,14 +1373,14 @@ function getKesehatanList(role,aksesKelas,token){
   try{
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan');
     if(!sh)return {success:false,message:'Sheet Trx_Kesehatan tidak ditemukan. Jalankan inisialisasi database terlebih dahulu.'};
-    var m=headerMap(sh),lastRow=sh.getLastRow(),lastCol=sh.getLastColumn(),o=[];
+    var m=headerMap(sh),lastRow=sh.getLastRow(),lastCol=sh.getLastColumn(),o=[],scopeIndex=buildSantriScopeIndex_();
     if(lastRow<2)return {success:true,data:[]};
     function gv(row,name){return m[name]?row[m[name]-1]:'';}
     function pushRow(row){
       var nama=String(gv(row,'Nama_Santri')||'').trim();
       if(!nama)return;
       var kelas=String(gv(row,'Kelas')||'').trim();
-      if(sess.role==='walikelas' && sess.aksesKelas!=='All' && kelas.toLowerCase()!==String(sess.aksesKelas).toLowerCase())return;
+      if(!assertTransactionRowAccess_(sess,row,m,scopeIndex).ok)return;
       var status=gv(row,'Status');
       var statusKes=m['Status_Kesehatan']?String(gv(row,'Status_Kesehatan')||'').trim():(String(status||'').toLowerCase()==='selesai'?'Sudah Sehat':'Belum Sehat');
       if(!statusKes)statusKes='Belum Sehat';
@@ -1393,15 +1425,15 @@ function getKesehatanList(role,aksesKelas,token){
 }
 
 function updateKesehatan(data,token){
- var a=requireCapability_(token,'kesehatan.edit');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['id','santriNama','tanggal','keluhan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};
- try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(d.id)){var vals={'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Keluhan':normalizeText_(d.keluhan,1000),'Pemeriksaan':normalizeText_(d.pemeriksaan,2000),'Diagnosa':normalizeText_(d.diagnosa,1000),'Tindakan':normalizeText_(d.tindakan,2000),'Obat':normalizeText_(d.obat,1000),'Suhu':d.suhu||'','Berat_Badan':d.beratBadan||'','Status':normalizeText_(d.status,100),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,1000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_KESEHATAN',String(d.id),'Santri='+st.id);return {success:true,message:'Data Kesehatan berhasil diperbarui.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+ var a=requireCapability_(token,'kesehatan.edit');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['id','santriNama','tanggal','keluhan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var access=assertSantriAccess_(a.session,st);if(!access.ok)return {success:false,message:access.message};
+ try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(d.id)){var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};var vals={'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Keluhan':normalizeText_(d.keluhan,1000),'Pemeriksaan':normalizeText_(d.pemeriksaan,2000),'Diagnosa':normalizeText_(d.diagnosa,1000),'Tindakan':normalizeText_(d.tindakan,2000),'Obat':normalizeText_(d.obat,1000),'Suhu':d.suhu||'','Berat_Badan':d.beratBadan||'','Status':normalizeText_(d.status,100),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,1000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_KESEHATAN',String(d.id),'Santri='+st.id);return {success:true,message:'Data Kesehatan berhasil diperbarui.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 function bulkMarkKesehatanRecovered(ids,token){
   var a=requireCapability_(token,'kesehatan.edit');if(!a.ok)return a.response;
   ids=Array.isArray(ids)?ids.map(String).filter(Boolean):[];if(!ids.length)return {success:false,message:'Pilih minimal satu data kesehatan.'};
   try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues(),set={};ids.forEach(function(id){set[id]=true;});var count=0,now=new Date();
-    for(var i=1;i<rows.length;i++){var id=String(rows[i][m['ID_Kesehatan']-1]||'');if(!set[id])continue;
+    for(var i=1;i<rows.length;i++){var id=String(rows[i][m['ID_Kesehatan']-1]||'');if(!set[id])continue;var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};
       if(m['Status_Kesehatan'])sh.getRange(i+1,m['Status_Kesehatan']).setValue('Sudah Sehat');
       if(m['Status'])sh.getRange(i+1,m['Status']).setValue('Selesai');
       if(m['Recovered_At'])sh.getRange(i+1,m['Recovered_At']).setValue(now);
@@ -1414,7 +1446,7 @@ function bulkMarkKesehatanRecovered(ids,token){
   });}catch(e){return {success:false,message:e.toString()};}
 }
 
-function deleteKesehatan(id,token){var a=requireCapability_(token,'kesehatan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(id)){sh.deleteRow(i+1);auditLog_(a.session,'DELETE_KESEHATAN',String(id),'');return {success:true,message:'Data Kesehatan berhasil dihapus.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+function deleteKesehatan(id,token){var a=requireCapability_(token,'kesehatan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Kesehatan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Kesehatan']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_KESEHATAN',String(id),'');return {success:true,message:'Data Kesehatan berhasil dihapus.'};}return {success:false,message:'Data Kesehatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 
@@ -1431,7 +1463,7 @@ function getPelanggaranList(token){
 }
 function updatePelanggaran(data,token){
  var a=requireCapability_(token,'pelanggaran.edit');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['id','santriNama','tanggal','jenisPelanggaran','deskripsi']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var targetAccess=assertSantriAccess_(a.session,st);if(!targetAccess.ok)return {success:false,message:targetAccess.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal tidak valid.'};
- try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Pelanggaran']-1])===String(d.id)){var vals={'Nama_Santri':st.nama,'Tanggal':d.tanggal,'Jenis_Pelanggaran':normalizeText_(d.jenisPelanggaran,100),'Tingkat_Pelanggaran':normalizeText_(d.tingkatPelanggaran,100),'Deskripsi':normalizeText_(d.deskripsi,2000),'Kronologi':normalizeText_(d.kronologi,3000),'Tindak_Pembinaan':normalizeText_(d.tindakPembinaan,2000),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,2000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_PELANGGARAN',String(d.id),'Santri='+st.id);return {success:true,message:'Data Pelanggaran berhasil diperbarui.'};}return {success:false,message:'Data Pelanggaran tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+ try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Pelanggaran']-1])===String(d.id)){var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};var vals={'Nama_Santri':st.nama,'Tanggal':d.tanggal,'Jenis_Pelanggaran':normalizeText_(d.jenisPelanggaran,100),'Tingkat_Pelanggaran':normalizeText_(d.tingkatPelanggaran,100),'Deskripsi':normalizeText_(d.deskripsi,2000),'Kronologi':normalizeText_(d.kronologi,3000),'Tindak_Pembinaan':normalizeText_(d.tindakPembinaan,2000),'Tindak_Lanjut':normalizeText_(d.tindakLanjut,2000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_PELANGGARAN',String(d.id),'Santri='+st.id);return {success:true,message:'Data Pelanggaran berhasil diperbarui.'};}return {success:false,message:'Data Pelanggaran tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 function deletePelanggaran(id,token){var a=requireCapability_(token,'pelanggaran.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Pelanggaran'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Pelanggaran']-1])===String(id)){var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PELANGGARAN',String(id),'');return {success:true,message:'Data Pelanggaran berhasil dihapus.'};}return {success:false,message:'Data Pelanggaran tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
@@ -1467,6 +1499,7 @@ function simpanPerizinan(data, token) {
 
   var santri = getSantriRecordByName_(d.santriNama);
   if (!santri) return { success: false, message: 'Santri tidak ditemukan.' };
+  var santriAccess=assertSantriAccess_(auth.session,santri);if(!santriAccess.ok)return {success:false,message:santriAccess.message};
   if (!normalizeDateInput_(d.mulai) || !normalizeDateInput_(d.selesai)) {
     return { success: false, message: 'Tanggal mulai/selesai tidak valid.' };
   }
@@ -1613,9 +1646,10 @@ function getPerizinanList(role,aksesKelas,token){
   try{
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan');
     if(!sh)return {success:false,message:'Sheet Trx_Perizinan tidak ditemukan. Jalankan inisialisasi database terlebih dahulu.'};
-    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];
+    var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();
     function gv(row,name){return m[name]?row[m[name]-1]:'';}
     for(var i=d.length-1;i>=1;i--){
+      if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;
       var nama=String(gv(d[i],'Nama_Santri')||'').trim();
       if(!nama)continue;
       var k=String(gv(d[i],'Kelas')||'').trim();
@@ -1645,7 +1679,7 @@ function bulkMarkPerizinanReturned(ids,token){
   var a=requireCapability_(token,'perizinan.edit');if(!a.ok)return a.response;
   ids=Array.isArray(ids)?ids.map(String).filter(Boolean):[];if(!ids.length)return {success:false,message:'Pilih minimal satu data perizinan.'};
   try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues(),set={};ids.forEach(function(id){set[id]=true;});var count=0,now=new Date();
-    for(var i=1;i<rows.length;i++){var id=String(rows[i][m['ID_Perizinan']-1]||'');if(!set[id])continue;
+    for(var i=1;i<rows.length;i++){var id=String(rows[i][m['ID_Perizinan']-1]||'');if(!set[id])continue;var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};
       if(m['Status_Kembali'])sh.getRange(i+1,m['Status_Kembali']).setValue('Sudah Kembali');
       if(m['Returned_At'])sh.getRange(i+1,m['Returned_At']).setValue(now);
       if(m['Returned_By'])sh.getRange(i+1,m['Returned_By']).setValue(a.session.name);
@@ -1657,7 +1691,7 @@ function bulkMarkPerizinanReturned(ids,token){
   });}catch(e){return {success:false,message:e.toString()};}
 }
 
-function deletePerizinan(id,token){var a=requireCapability_(token,'perizinan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Perizinan']-1])===String(id)){sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PERIZINAN',String(id),'');return {success:true,message:'Data Perizinan berhasil dihapus.'};}return {success:false,message:'Data Perizinan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+function deletePerizinan(id,token){var a=requireCapability_(token,'perizinan.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Perizinan'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Perizinan']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,rows[i],m);if(!access.ok)return {success:false,message:access.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_PERIZINAN',String(id),'');return {success:true,message:'Data Perizinan berhasil dihapus.'};}return {success:false,message:'Data Perizinan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 
@@ -1686,7 +1720,7 @@ function simpanPrestasi(formData, fileObj, token) {
   });}catch(e){return {success:false,message:'Gagal menyimpan data: '+e.toString()};}
 }
 function getPendingPrestasiList(token){var a=requireCapability_(token,'prestasi.view');if(!a.ok)return a.response;try{var s=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Prestasi'),d=s.getDataRange().getValues(),o=[];var scopeIndex=buildSantriScopeIndex_();for(var i=1;i<d.length;i++)if(String(d[i][10])==='Pending'){var access=assertTransactionRowAccess_(a.session,d[i],headerMap(s),scopeIndex);if(!access.ok)continue;o.push({idPrestasi:d[i][0],santriNama:d[i][1],tanggal:d[i][2]?Utilities.formatDate(new Date(d[i][2]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',jenisPrestasi:d[i][3],uraian:d[i][4],createdBy:d[i][11]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
-function updatePrestasiApprovalStatus(idPrestasi,newStatus,token){var a=requireCapability_(token,'prestasi.approve');if(!a.ok)return a.response;if(['Approved','Rejected'].indexOf(newStatus)<0)return {success:false,message:'Status approval tidak valid.'};try{return withDataLock_(function(){var s=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Prestasi'),m=headerMap(s),d=s.getDataRange().getValues();for(var i=1;i<d.length;i++)if(String(d[i][m['ID_Prestasi']-1])===String(idPrestasi)){var previousStatus=String(d[i][m['Status_Approval']-1]||'');s.getRange(i+1,m['Status_Approval']).setValue(newStatus);if(m['Updated_At'])s.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])s.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_PRESTASI_APPROVAL',String(idPrestasi),'Status='+newStatus);
+function updatePrestasiApprovalStatus(idPrestasi,newStatus,token){var a=requireCapability_(token,'prestasi.approve');if(!a.ok)return a.response;if(['Approved','Rejected'].indexOf(newStatus)<0)return {success:false,message:'Status approval tidak valid.'};try{return withDataLock_(function(){var s=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Prestasi'),m=headerMap(s),d=s.getDataRange().getValues();for(var i=1;i<d.length;i++)if(String(d[i][m['ID_Prestasi']-1])===String(idPrestasi)){var rowAccess=assertTransactionRowAccess_(a.session,d[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};var previousStatus=String(d[i][m['Status_Approval']-1]||'');s.getRange(i+1,m['Status_Approval']).setValue(newStatus);if(m['Updated_At'])s.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])s.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_PRESTASI_APPROVAL',String(idPrestasi),'Status='+newStatus);
         try{var st=getSantriRecordByName_(d[i][m['Nama_Santri']-1]); if(newStatus==='Approved' && previousStatus!=='Approved')queueNewDataPush_('PRESTASI',st,String(idPrestasi),'Approved',a.session); else if(newStatus==='Rejected' && previousStatus!=='Rejected')queueNewDataPush_('PRESTASI',st,String(idPrestasi),'Rejected',a.session); queueWhatsAppNotification_('PRESTASI_APPROVAL',st,String(idPrestasi),{category:'Persetujuan Prestasi',status:newStatus,detail:'Status prestasi diperbarui.'},a.session);}catch(e){}
         return {success:true,message:'Status persetujuan prestasi berhasil diperbarui menjadi: '+newStatus};}return {success:false,message:'ID Prestasi tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}}
 
@@ -1714,6 +1748,7 @@ function updatePrestasi(data,token){
   try{return withDataLock_(function(){
     var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Prestasi'),m=headerMap(sh),rows=sh.getDataRange().getValues();
     for(var i=1;i<rows.length;i++) if(String(rows[i][m['ID_Prestasi']-1])===String(d.id)){
+      var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};
       var vals={'Nama_Santri':st.nama,'Tanggal':d.tanggal,'Jenis_Prestasi':normalizeText_(d.jenisPrestasi,100),'Uraian_Prestasi':normalizeText_(d.uraian,2000),'Tingkat_Penghargaan':normalizeText_(d.tingkatPenghargaan,100),'Tingkat_Juara':normalizeText_(d.tingkatJuara,100),'Tingkat_Lomba':normalizeText_(d.tingkatTempat,100),'Pembimbing':normalizeText_(d.pembimbing,150)};
       Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});
       if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id); if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date()); if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);
@@ -1882,11 +1917,12 @@ function getRekapClassList(role, aksesKelas, token) {
   try {
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');
     if(!sh || sh.getLastRow()<=1)return {success:true,data:[]};
-    var rows=sh.getDataRange().getValues(), m=headerMap(sh), idxK=m['Kelas']-1;
+    var rows=sh.getDataRange().getValues(), m=headerMap(sh), idxK=m['Kelas']-1, idxGender=(m['Jenis_Kelamin']||0)-1;
     if(idxK<0)return {success:false,message:'Kolom Kelas pada Data_Santri tidak ditemukan.'};
     var map={};
     for(var i=1;i<rows.length;i++){
       var k=String(rows[i][idxK]||'').trim(); if(!k)continue;
+      if(!assertSantriAccess_(session,{kelas:k,jenisKelamin:idxGender>=0?rows[i][idxGender]:''}).ok)continue;
       if(session.role==='walikelas' && session.aksesKelas!=='All' && k.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;
       map[k]=true;
     }
@@ -1900,11 +1936,12 @@ function getRekapPerAnak(role, aksesKelas, kelasFilter, token) {
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');
     if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};
-    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1, ki=(sm['Kelas']||0)-1;
+    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1, ki=(sm['Kelas']||0)-1, gi=(sm['Jenis_Kelamin']||0)-1;
     if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
     var wanted=String(kelasFilter||'ALL').trim().toLowerCase(), siswa=[];
     for(var i=1;i<rows.length;i++){
       var nama=String(rows[i][ni]||'').trim(), kelas=String(rows[i][ki]||'').trim(); if(!nama)continue;
+      if(!assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gi>=0?rows[i][gi]:''}).ok)continue;
       if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;
       if(wanted!=='all'&&kelas.toLowerCase()!==wanted)continue;
       siswa.push({nama:nama,kelas:kelas,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]});
@@ -1930,9 +1967,9 @@ function getRekapPerKelas(role, aksesKelas, token) {
   var session=auth.session;
   try{
     var ss=SpreadsheetApp.getActiveSpreadsheet(), sh=ss.getSheetByName('Data_Santri');if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};
-    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1,ki=(sm['Kelas']||0)-1;if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
+    var rows=sh.getDataRange().getValues(), sm=headerMap(sh), ni=(sm['Nama_Santri']||0)-1,ki=(sm['Kelas']||0)-1,gi=(sm['Jenis_Kelamin']||0)-1;if(ni<0||ki<0)return {success:false,message:'Kolom Nama_Santri/Kelas pada Data_Santri tidak ditemukan.'};
     var classes={},nameToClass={};
-    for(var i=1;i<rows.length;i++){var nama=String(rows[i][ni]||'').trim(),kelas=String(rows[i][ki]||'').trim();if(!kelas)continue;if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;if(!classes[kelas])classes[kelas]={kelas:kelas,santri:0,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]};classes[kelas].santri++;if(nama)nameToClass[nama.toLowerCase()]=kelas;}
+    for(var i=1;i<rows.length;i++){var nama=String(rows[i][ni]||'').trim(),kelas=String(rows[i][ki]||'').trim();if(!kelas)continue;if(!assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gi>=0?rows[i][gi]:''}).ok)continue;if(session.role==='walikelas'&&session.aksesKelas!=='All'&&kelas.toLowerCase()!==String(session.aksesKelas||'').trim().toLowerCase())continue;if(!classes[kelas])classes[kelas]={kelas:kelas,santri:0,prestasi:[],pelanggaran:[],catatanWali:[],perizinan:[],kesehatan:[]};classes[kelas].santri++;if(nama)nameToClass[nama.toLowerCase()]=kelas;}
     function read(name,cb){var sh=ss.getSheetByName(name);if(!sh||sh.getLastRow()<=1)return;var data=sh.getDataRange().getValues(),m=headerMap(sh),ni2=(m['Nama_Santri']||0)-1;if(ni2<0)return;for(var j=1;j<data.length;j++){var k=nameToClass[String(data[j][ni2]||'').trim().toLowerCase()];if(k&&classes[k])cb(data[j],m,classes[k]);}}
     read('Trx_Prestasi',function(r,m,c){var st=m['Status_Approval']?String(r[m['Status_Approval']-1]||''):'';if(st==='Approved'||st==='Disetujui')c.prestasi.push({santriNama:m['Nama_Santri']?r[m['Nama_Santri']-1]:'',tanggal:formatDateSafe(m['Tanggal']?r[m['Tanggal']-1]:''),judul:(m['Jenis_Prestasi']?r[m['Jenis_Prestasi']-1]:'')||(m['Uraian_Prestasi']?r[m['Uraian_Prestasi']-1]:''),detail:m['Uraian_Prestasi']?r[m['Uraian_Prestasi']-1]:'',createdBy:m['Created_By']?r[m['Created_By']-1]:''});});
     read('Trx_Pelanggaran',function(r,m,c){c.pelanggaran.push({santriNama:m['Nama_Santri']?r[m['Nama_Santri']-1]:'',tanggal:formatDateSafe(m['Tanggal']?r[m['Tanggal']-1]:''),judul:(m['Jenis_Pelanggaran']?r[m['Jenis_Pelanggaran']-1]:'')+' - Tingkat '+(m['Tingkat_Pelanggaran']?r[m['Tingkat_Pelanggaran']-1]:''),detail:m['Deskripsi']?r[m['Deskripsi']-1]:'',tindakLanjut:m['Tindak_Lanjut']?r[m['Tindak_Lanjut']-1]:'',createdBy:m['Created_By']?r[m['Created_By']-1]:''});});
@@ -2004,10 +2041,12 @@ function getDashboardAnalytics(token, monthsBack) {
 function getVisibleStudentClassMap_(session) {
   var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');
   var map={}; if(!sh || sh.getLastRow()<=1) return map;
-  var rows=sh.getDataRange().getValues();
+  var rows=sh.getDataRange().getValues(),m=headerMap(sh);
   for(var i=1;i<rows.length;i++){
-    var name=String(rows[i][2]||'').trim(), kelas=String(rows[i][3]||'').trim();
-    if(!name) continue;
+    var name=String(m['Nama_Santri']?rows[i][m['Nama_Santri']-1]:rows[i][2]||'').trim();
+    var kelas=String(m['Kelas']?rows[i][m['Kelas']-1]:rows[i][3]||'').trim();
+    var gender=m['Jenis_Kelamin']?rows[i][m['Jenis_Kelamin']-1]:'';
+    if(!name || !assertSantriAccess_(session,{kelas:kelas,jenisKelamin:gender}).ok) continue;
     if(session.role==='walikelas' && session.aksesKelas!=='All' && String(session.aksesKelas||'').trim() && kelas.toLowerCase()!==String(session.aksesKelas).trim().toLowerCase()) continue;
     map[name.toLowerCase()]=kelas;
   }
@@ -2162,7 +2201,6 @@ function assertRoleScope_(session, santri) {
   if (!session) return {ok:false,message:'Sesi tidak valid.'};
   var role = normalizeRole_(session.role);
   if (!ROLE_PERMISSIONS[role]) return {ok:false,message:'Role tidak dikenali.'};
-  if (ROLE_PERMISSIONS[role].scope === 'ALL') return {ok:true};
   return assertSantriAccess_(session, santri);
 }
 
@@ -2185,7 +2223,7 @@ function getMyPermissions(token) {
   if (!auth.ok) return auth.response;
   var role = normalizeRole_(auth.session.role);
   if (!ROLE_PERMISSIONS[role]) return {success:false,code:'INVALID_ROLE',message:'Role pengguna tidak dikenali.'};
-  return {success:true,version:ROLE_PERMISSION_VERSION,role:role,label:ROLE_PERMISSIONS[role].label,scope:ROLE_PERMISSIONS[role].scope,capabilities:ROLE_PERMISSIONS[role].capabilities.slice()};
+  return {success:true,version:ROLE_PERMISSION_VERSION,role:role,label:ROLE_PERMISSIONS[role].label,scope:ROLE_PERMISSIONS[role].scope,lingkupSantri:normalizeSantriScope_(auth.session.lingkupSantri),capabilities:ROLE_PERMISSIONS[role].capabilities.slice()};
 }
 
 function validateUserRole_(role) {
@@ -2195,8 +2233,8 @@ function validateUserRole_(role) {
 
 /* ===== BEGIN Santri.gs ===== */
 /** TAICIMASTER FM — Stage 5 Dashboard, Rekapan Stage 4 Core Modules & Role Permission FINAL v4.0 Reporting FINAL v5.0 — Santri */
-function getSantriList(role,aksesKelas,token){var a=requireCapability_(token,'santri.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=1;i<d.length;i++){var k=normalizeText_(d[i][m['Kelas']-1]);if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==normalizeText_(s.aksesKelas).toLowerCase())continue;o.push({id:d[i][m['ID_Santri']-1],nisn:d[i][m['NISN']-1],nama:d[i][m['Nama_Santri']-1],kelas:k,waliKelas:d[i][m['Wali_Kelas']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
-function getStudentClass(nama,token){var a=requireCapability_(token,'santri.view');if(!a.ok)return '';var s=getSantriRecordByName_(nama);if(!s)return '';if(a.session.role==='walikelas'&&a.session.aksesKelas!=='All'&&String(s.kelas).toLowerCase()!==String(a.session.aksesKelas).toLowerCase())return '';return s.kelas||'';}
+function getSantriList(role,aksesKelas,token){var a=requireCapability_(token,'santri.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Santri');if(!sh)return {success:false,message:'Sheet Data_Santri tidak ditemukan.'};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=1;i<d.length;i++){var st={kelas:normalizeText_(m['Kelas']?d[i][m['Kelas']-1]:''),jenisKelamin:m['Jenis_Kelamin']?d[i][m['Jenis_Kelamin']-1]:''};if(!assertSantriAccess_(s,st).ok)continue;o.push({id:m['ID_Santri']?d[i][m['ID_Santri']-1]:'',nisn:m['NISN']?d[i][m['NISN']-1]:'',nama:m['Nama_Santri']?d[i][m['Nama_Santri']-1]:'',kelas:st.kelas,waliKelas:m['Wali_Kelas']?d[i][m['Wali_Kelas']-1]:''});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
+function getStudentClass(nama,token){var a=requireCapability_(token,'santri.view');if(!a.ok)return '';var s=getSantriRecordByName_(nama);if(!s)return '';if(!assertSantriAccess_(a.session,s).ok)return '';return s.kelas||'';}
 
 
 /* ===== BEGIN Security.gs ===== */
@@ -2229,7 +2267,7 @@ function verifyPassword_(password, stored) {
 function createSession_(user) {
   var token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
   var canonicalRole = (typeof normalizeRole_ === 'function' ? normalizeRole_(user.role) : String(user.role || '').trim().toLowerCase().replace(/[\s-]+/g,'_'));
-  var payload = { id:String(user.id), name:String(user.name), email:String(user.email), role:canonicalRole, aksesKelas:String(user.aksesKelas || 'All'), waliSantriIds:String(user.waliSantriIds || ''), createdAt:Date.now(), expiresAt:Date.now()+SECURITY.SESSION_TTL_SECONDS*1000 };
+  var payload = { id:String(user.id), name:String(user.name), email:String(user.email), role:canonicalRole, aksesKelas:String(user.aksesKelas || 'All'), lingkupSantri:normalizeSantriScope_(user.lingkupSantri), waliSantriIds:String(user.waliSantriIds || ''), createdAt:Date.now(), expiresAt:Date.now()+SECURITY.SESSION_TTL_SECONDS*1000 };
   PropertiesService.getScriptProperties().setProperty(SECURITY.SESSION_PREFIX + token, JSON.stringify(payload));
   return token;
 }
@@ -2309,6 +2347,7 @@ function restoreRememberedSession(rememberToken) {
       email:row[2],
       role:canonicalRole,
       aksesKelas:row[6]||'All',
+      lingkupSantri:normalizeSantriScope_(um['Lingkup_Santri']?row[um['Lingkup_Santri']-1]:'ALL'),
       waliSantriIds:um['ID_Santri_Wali'] ? String(row[um['ID_Santri_Wali']-1]||'') : ''
     };
 
@@ -2473,13 +2512,13 @@ function logoutUser(token) {
 function getCurrentSession(token) {
   var r=requireSessionResult_(token);
   if (!r.ok) return r.response;
-  return {success:true,user:{id:r.session.id,name:r.session.name,email:r.session.email,role:r.session.role,aksesKelas:r.session.aksesKelas}};
+  return {success:true,user:{id:r.session.id,name:r.session.name,email:r.session.email,role:r.session.role,aksesKelas:r.session.aksesKelas,lingkupSantri:normalizeSantriScope_(r.session.lingkupSantri)}};
 }
 
 function initializeSecurityDatabase_() {
   var ss=SpreadsheetApp.getActiveSpreadsheet();
   var user=ss.getSheetByName('Data_Users');
-  if (user) ['Password_Salt','Failed_Login_Count','Locked_Until','Last_Login_At'].forEach(function(h){ensureColumn(user,h);});
+  if (user) ['Password_Salt','Failed_Login_Count','Locked_Until','Last_Login_At','Lingkup_Santri'].forEach(function(h){ensureColumn(user,h);});
   var audit=ss.getSheetByName('Audit_Log');
   if (!audit) { audit=ss.insertSheet('Audit_Log'); audit.appendRow(['ID_Audit','Timestamp','User_ID','User_Name','Role','Action','Target','Detail']); audit.getRange(1,1,1,8).setFontWeight('bold').setBackground('#7E22CE').setFontColor('#FFFFFF'); }
   return {success:true,message:'Security database siap.'};
@@ -2491,7 +2530,7 @@ function initializeSecurityDatabase_() {
 function getUserList(token) {
   try { var auth=requireCapability_(token,'user.manage'); if(!auth.ok)return auth.response;
     var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users'),data=sheet.getDataRange().getValues(),users=[];
-    for(var i=1;i<data.length;i++)users.push({id:data[i][0],nama:data[i][1],email:data[i][2],role:data[i][4],status:data[i][5],aksesKelas:data[i][6]});
+    var um=headerMap(sheet); for(var i=1;i<data.length;i++)users.push({id:data[i][0],nama:data[i][1],email:data[i][2],role:data[i][4],status:data[i][5],aksesKelas:data[i][6],lingkupSantri:normalizeSantriScope_(um['Lingkup_Santri']?data[i][um['Lingkup_Santri']-1]:'ALL')});
     return {success:true,data:users};
   }catch(e){return {success:false,message:e.toString()};}
 }
@@ -2503,9 +2542,15 @@ function addNewUser(userData,token) {
     var sheet=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users'),data=sheet.getDataRange().getValues();
     for(var i=1;i<data.length;i++)if(String(data[i][2]).toLowerCase()===email)return {success:false,message:'Email sudah terdaftar.'};
     var idUser=generateRecordId_('USR');
-    withDataLock_(function(){ var m=headerMap(sheet), row=new Array(sheet.getLastColumn()).fill(''); var vals={'ID_User':idUser,'Nama':normalizeText_(userData.nama,150),'Email':email,'Password':makePasswordHash_(pass),'Role':userData.role||'walikelas','Status':'Aktif','Akses_Kelas':userData.aksesKelas||'All','Password_Salt':'','Failed_Login_Count':0,'Locked_Until':'','Last_Login_At':'','ID_Santri_Wali':String(userData.idSantriWali||'').trim(),'Updated_At':new Date(),'Updated_By':auth.session.name}; Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];}); sheet.appendRow(row); });
+    withDataLock_(function(){ var m=headerMap(sheet), row=new Array(sheet.getLastColumn()).fill(''); var vals={'ID_User':idUser,'Nama':normalizeText_(userData.nama,150),'Email':email,'Password':makePasswordHash_(pass),'Role':userData.role||'walikelas','Status':'Aktif','Akses_Kelas':userData.aksesKelas||'All','Lingkup_Santri':normalizeSantriScope_(userData.lingkupSantri),'Password_Salt':'','Failed_Login_Count':0,'Locked_Until':'','Last_Login_At':'','ID_Santri_Wali':String(userData.idSantriWali||'').trim(),'Updated_At':new Date(),'Updated_By':auth.session.name}; Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];}); sheet.appendRow(row); });
     auditLog_(auth.session,'CREATE_USER','USER',email); return {success:true,message:'Pengguna baru berhasil ditambahkan!'};
   }catch(e){return {success:false,message:'Gagal menambahkan user: '+e.toString()};}
+}
+
+function updateUserSantriScope(userId,scope,token){
+  var auth=requireSessionResult_(token,['superadmin']);if(!auth.ok)return auth.response;
+  scope=normalizeSantriScope_(scope);
+  try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users');if(!sh)return {success:false,message:'Sheet Data_Users tidak ditemukan.'};var m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++){if(String(rows[i][m['ID_User']-1])!==String(userId))continue;if(!m['Lingkup_Santri'])ensureColumn(sh,'Lingkup_Santri');m=headerMap(sh);sh.getRange(i+1,m['Lingkup_Santri']).setValue(scope);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(auth.session.name);revokeRememberTokensForUser_(userId);var props=PropertiesService.getScriptProperties(),all=props.getProperties();Object.keys(all).forEach(function(key){if(key.indexOf(SECURITY.SESSION_PREFIX)!==0)return;try{var p=JSON.parse(all[key]);if(String(p.id)===String(userId))props.deleteProperty(key);}catch(ignore){}});auditLog_(auth.session,'UPDATE_USER_SCOPE',String(userId),'Lingkup='+scope+'; sesi aktif dicabut');return {success:true,message:'Lingkup akses pengguna diperbarui. Pengguna harus login kembali agar pembatasan baru berlaku.'};}return {success:false,message:'Pengguna tidak ditemukan.'};}catch(e){return {success:false,message:'Gagal memperbarui lingkup: '+e.toString()};}
 }
 
 
@@ -2520,7 +2565,7 @@ function formatDateSafe(v){if(!v)return '';try{return Utilities.formatDate(new D
 /* ===== BEGIN WaliKelas.gs ===== */
 /** TAICIMASTER FM — Stage 5 Dashboard, Rekapan Stage 4 Core Modules & Role Permission FINAL v4.0 Reporting FINAL v5.0 — Wali Kelas */
 function simpanCatatanWaliKelas(data,token){var a=requireCapability_(token,'catatan_wali.create');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['santriNama','tanggal','kategori','catatan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama),ac=assertSantriAccess_(a.session,st);if(!ac.ok)return {success:false,message:ac.message};if(!normalizeDateInput_(d.tanggal))return {success:false,message:'Tanggal catatan tidak valid.'};if(!cacheDuplicateGuard_('CATATAN_WALI',a.session.id,{santri:st.id||st.nama,tanggal:d.tanggal,kategori:d.kategori,catatan:d.catatan}))return {success:false,code:'DUPLICATE_REQUEST',message:'Permintaan yang sama baru saja diproses. Hindari klik dua kali.'};try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh){sh=SpreadsheetApp.getActiveSpreadsheet().insertSheet('Trx_Catatan_Wali');sh.appendRow(['ID_Catatan','Nama_Santri','Kelas','Tanggal','Kategori','Catatan','Created_By']);}ensureColumn(sh,'ID_Santri');ensureColumn(sh,'Created_At');ensureColumn(sh,'Updated_At');ensureColumn(sh,'Updated_By');var m=headerMap(sh),id=generateRecordId_('CWK'),now=new Date(),row=new Array(sh.getLastColumn()).fill(''),vals={'ID_Catatan':id,'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Kategori':normalizeText_(d.kategori,100),'Catatan':normalizeText_(d.catatan,3000),'Created_By':a.session.name};Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});row[m['ID_Santri']-1]=st.id;row[m['Created_At']-1]=now;row[m['Updated_At']-1]=now;row[m['Updated_By']-1]=a.session.name;sh.appendRow(row);auditLog_(a.session,'CREATE_CATATAN_WALI',id,'Santri='+st.id);queueNewDataPush_('CATATAN_WALI',st,id,'Approved',a.session);return {success:true,idCatatan:id,message:'Catatan Wali Kelas Berhasil Disimpan!'};});}catch(e){return {success:false,message:'Gagal menyimpan catatan: '+e.toString()};}}
-function getRiwayatCatatanWaliKelas(aksesKelas,token){var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[];for(var i=d.length-1;i>=1;i--){var k=String(d[i][m['Kelas']-1]||'');if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
+function getRiwayatCatatanWaliKelas(aksesKelas,token){var a=requireCapability_(token,'catatan_wali.view');if(!a.ok)return a.response;var s=a.session;try{var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali');if(!sh)return {success:true,data:[]};var d=sh.getDataRange().getValues(),m=headerMap(sh),o=[],scopeIndex=buildSantriScopeIndex_();for(var i=d.length-1;i>=1;i--){if(!assertTransactionRowAccess_(s,d[i],m,scopeIndex).ok)continue;var k=String(d[i][m['Kelas']-1]||'');if(s.role==='walikelas'&&s.aksesKelas!=='All'&&k.toLowerCase()!==String(s.aksesKelas).toLowerCase())continue;o.push({idCatatan:d[i][m['ID_Catatan']-1],santriNama:d[i][m['Nama_Santri']-1],tanggal:d[i][m['Tanggal']-1]?Utilities.formatDate(new Date(d[i][m['Tanggal']-1]),Session.getScriptTimeZone(),'dd/MM/yyyy'):'',kategori:d[i][m['Kategori']-1],catatan:d[i][m['Catatan']-1],createdBy:d[i][m['Created_By']-1]});}return {success:true,data:o};}catch(e){return {success:false,message:e.toString()};}}
 
 function getWaliKelasClassSummary(aksesKelas, token) {
   var a = requireCapability_(token, 'catatan_wali.view');
@@ -2551,9 +2596,9 @@ function getWaliKelasClassSummary(aksesKelas, token) {
 
 function updateCatatanWaliKelas(data,token){
   var a=requireCapability_(token,'catatan_wali.edit');if(!a.ok)return a.response;var d=data||{},req=requireFields_(d,['idCatatan','santriNama','tanggal','kategori','catatan']);if(!req.ok)return {success:false,message:req.message};var st=getSantriRecordByName_(d.santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var ac=assertSantriAccess_(a.session,st);if(!ac.ok)return {success:false,message:ac.message};
-  try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Catatan']-1])===String(d.idCatatan)){var vals={'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Kategori':normalizeText_(d.kategori,100),'Catatan':normalizeText_(d.catatan,3000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_CATATAN_WALI',String(d.idCatatan),'Santri='+st.id);return {success:true,message:'Catatan Wali Kelas berhasil diperbarui.'};}return {success:false,message:'Catatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+  try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Catatan']-1])===String(d.idCatatan)){var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};var vals={'Nama_Santri':st.nama,'Kelas':st.kelas,'Tanggal':d.tanggal,'Kategori':normalizeText_(d.kategori,100),'Catatan':normalizeText_(d.catatan,3000)};Object.keys(vals).forEach(function(h){if(m[h])sh.getRange(i+1,m[h]).setValue(vals[h]);});if(m['ID_Santri'])sh.getRange(i+1,m['ID_Santri']).setValue(st.id);if(m['Updated_At'])sh.getRange(i+1,m['Updated_At']).setValue(new Date());if(m['Updated_By'])sh.getRange(i+1,m['Updated_By']).setValue(a.session.name);auditLog_(a.session,'UPDATE_CATATAN_WALI',String(d.idCatatan),'Santri='+st.id);return {success:true,message:'Catatan Wali Kelas berhasil diperbarui.'};}return {success:false,message:'Catatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
-function deleteCatatanWaliKelas(id,token){var a=requireCapability_(token,'catatan_wali.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Catatan']-1])===String(id)){sh.deleteRow(i+1);auditLog_(a.session,'DELETE_CATATAN_WALI',String(id),'');return {success:true,message:'Catatan Wali Kelas berhasil dihapus.'};}return {success:false,message:'Catatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
+function deleteCatatanWaliKelas(id,token){var a=requireCapability_(token,'catatan_wali.delete');if(!a.ok)return a.response;try{return withDataLock_(function(){var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Trx_Catatan_Wali'),m=headerMap(sh),rows=sh.getDataRange().getValues();for(var i=1;i<rows.length;i++)if(String(rows[i][m['ID_Catatan']-1])===String(id)){var rowAccess=assertTransactionRowAccess_(a.session,rows[i],m);if(!rowAccess.ok)return {success:false,message:rowAccess.message};sh.deleteRow(i+1);auditLog_(a.session,'DELETE_CATATAN_WALI',String(id),'');return {success:true,message:'Catatan Wali Kelas berhasil dihapus.'};}return {success:false,message:'Catatan tidak ditemukan.'};});}catch(e){return {success:false,message:e.toString()};}
 }
 
 
@@ -2734,7 +2779,7 @@ function queueWhatsAppNotification_(type,santri,eventId,data,session){
   var row=new Array(sh.getLastColumn()).fill(''),vals={'ID_Notification':id,'Created_At':now,'Scheduled_At':now,'Type':type,'Event_ID':eventId||'','Santri_ID':santri.id||'','Santri_Name':santri.nama||'','Recipient':recipient,'Message':message,'Status':WA8.STATUS.QUEUED,'Attempts':0,'Created_By':session?session.name:'SYSTEM'};
   Object.keys(vals).forEach(function(h){if(m[h])row[m[h]-1]=vals[h];});sh.appendRow(row);if(session)auditLog_(session,'QUEUE_WHATSAPP',id,'Recipient='+recipient+'; Type='+type);return {queued:true,id:id,recipient:recipient};
 }
-function queueWhatsAppNotification(type,santriNama,eventId,data,token){var a=requireCapability_(token,'notification.send');if(!a.ok)return a.response;var st=getSantriRecordByName_(santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var q=queueWhatsAppNotification_(type,st,eventId,data,a.session);return {success:true,data:q,message:q.queued?'Notifikasi masuk antrean WhatsApp.':'Notifikasi tidak diantrekan: '+q.reason};}
+function queueWhatsAppNotification(type,santriNama,eventId,data,token){var a=requireCapability_(token,'notification.send');if(!a.ok)return a.response;var st=getSantriRecordByName_(santriNama);if(!st)return {success:false,message:'Santri tidak ditemukan.'};var access=assertSantriAccess_(a.session,st);if(!access.ok)return {success:false,message:access.message};var q=queueWhatsAppNotification_(type,st,eventId,data,a.session);return {success:true,data:q,message:q.queued?'Notifikasi masuk antrean WhatsApp.':'Notifikasi tidak diantrekan: '+q.reason};}
 
 function buildProviderRequest_(cfg,recipient,message){
   var headers={'Content-Type':'application/json'},payload={to:recipient,message:message,sender:cfg.sender||'',appName:CONFIG.APP_NAME};
@@ -2757,8 +2802,8 @@ function processWhatsAppQueue(){
 }
 function installWhatsAppQueueTrigger(token){var a=requireSessionResult_(token,['superadmin']);if(!a.ok)return a.response;var existing=ScriptApp.getProjectTriggers().filter(function(t){return t.getHandlerFunction()==='processWhatsAppQueue';});if(!existing.length)ScriptApp.newTrigger('processWhatsAppQueue').timeBased().everyMinutes(WA8.TRIGGER_EVERY_MINUTES).create();PropertiesService.getScriptProperties().setProperty(WA8.PREFIX+'TRIGGER_ENABLED','true');auditLog_(a.session,'ENABLE_WHATSAPP_TRIGGER','NOTIFICATION','Every '+WA8.TRIGGER_EVERY_MINUTES+' minutes');return {success:true,message:'Pemrosesan antrean WhatsApp otomatis diaktifkan.'};}
 function disableWhatsAppQueueTrigger(token){var a=requireSessionResult_(token,['superadmin']);if(!a.ok)return a.response;ScriptApp.getProjectTriggers().forEach(function(t){if(t.getHandlerFunction()==='processWhatsAppQueue')ScriptApp.deleteTrigger(t);});PropertiesService.getScriptProperties().setProperty(WA8.PREFIX+'TRIGGER_ENABLED','false');auditLog_(a.session,'DISABLE_WHATSAPP_TRIGGER','NOTIFICATION','Trigger dinonaktifkan');return {success:true,message:'Pemrosesan antrean WhatsApp otomatis dimatikan.'};}
-function getNotificationQueue(token,status,limit){var a=requireAnyCapability_(token,['notification.send','notification.manage']);if(!a.ok)return a.response;ensureNotificationDatabase_();var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WA8.SHEET),m=headerMap(sh),d=sh.getDataRange().getValues(),o=[],max=Math.min(100,Number(limit||50));for(var i=d.length-1;i>=1&&o.length<max;i--){var st=String(d[i][m['Status']-1]||'');if(status&&status!=='ALL'&&st!==status)continue;o.push({id:d[i][m['ID_Notification']-1],createdAt:d[i][m['Created_At']-1],type:d[i][m['Type']-1],santriName:d[i][m['Santri_Name']-1],recipient:d[i][m['Recipient']-1],status:st,attempts:d[i][m['Attempts']-1],error:d[i][m['Error']-1]||''});}return {success:true,data:o};}
-function retryWhatsAppNotification(id,token){var a=requireCapability_(token,'notification.send');if(!a.ok)return a.response;ensureNotificationDatabase_();var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WA8.SHEET),m=headerMap(sh),d=sh.getDataRange().getValues();for(var i=1;i<d.length;i++)if(String(d[i][m['ID_Notification']-1])===String(id)){sh.getRange(i+1,m['Status']).setValue(WA8.STATUS.QUEUED);sh.getRange(i+1,m['Scheduled_At']).setValue(new Date());if(m['Error'])sh.getRange(i+1,m['Error']).clearContent();auditLog_(a.session,'RETRY_WHATSAPP',id,'Notification queued again');return {success:true,message:'Notifikasi dikembalikan ke antrean.'};}return {success:false,message:'Notification ID tidak ditemukan.'};}
+function getNotificationQueue(token,status,limit){var a=requireAnyCapability_(token,['notification.send','notification.manage']);if(!a.ok)return a.response;ensureNotificationDatabase_();var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WA8.SHEET),m=headerMap(sh),d=sh.getDataRange().getValues(),o=[],max=Math.min(100,Number(limit||50)),rowMap={ID_Santri:m['Santri_ID'],Nama_Santri:m['Santri_Name']};for(var i=d.length-1;i>=1&&o.length<max;i--){if(!assertTransactionRowAccess_(a.session,d[i],rowMap).ok)continue;var st=String(d[i][m['Status']-1]||'');if(status&&status!=='ALL'&&st!==status)continue;o.push({id:d[i][m['ID_Notification']-1],createdAt:d[i][m['Created_At']-1],type:d[i][m['Type']-1],santriName:d[i][m['Santri_Name']-1],recipient:d[i][m['Recipient']-1],status:st,attempts:d[i][m['Attempts']-1],error:d[i][m['Error']-1]||''});}return {success:true,data:o};}
+function retryWhatsAppNotification(id,token){var a=requireCapability_(token,'notification.send');if(!a.ok)return a.response;ensureNotificationDatabase_();var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WA8.SHEET),m=headerMap(sh),d=sh.getDataRange().getValues();for(var i=1;i<d.length;i++)if(String(d[i][m['ID_Notification']-1])===String(id)){var access=assertTransactionRowAccess_(a.session,d[i],{ID_Santri:m['Santri_ID'],Nama_Santri:m['Santri_Name']});if(!access.ok)return {success:false,message:access.message};sh.getRange(i+1,m['Status']).setValue(WA8.STATUS.QUEUED);sh.getRange(i+1,m['Scheduled_At']).setValue(new Date());if(m['Error'])sh.getRange(i+1,m['Error']).clearContent();auditLog_(a.session,'RETRY_WHATSAPP',id,'Notification queued again');return {success:true,message:'Notifikasi dikembalikan ke antrean.'};}return {success:false,message:'Notification ID tidak ditemukan.'};}
 function testWhatsAppConnection(token){var a=requireSessionResult_(token,['superadmin']);if(!a.ok)return a.response;var cfg=getWhatsAppSettings_(false);if(!cfg.endpoint)return {success:false,message:'Endpoint WhatsApp belum diatur.'};var testRecipient=normalizeWhatsAppNumber_(cfg.sender);if(!testRecipient)return {success:false,message:'Isi Nomor Penguji (Sender/Test Number) dengan nomor WhatsApp valid.'};var req=buildProviderRequest_(cfg,testRecipient,'Tes koneksi TAICIMASTER FM Stage 8. Jika pesan ini diterima, gateway WhatsApp berhasil terhubung.');try{var r=UrlFetchApp.fetch(cfg.endpoint,{method:'post',contentType:'application/json',headers:req.headers,payload:JSON.stringify(req.payload),muteHttpExceptions:true}),code=r.getResponseCode();auditLog_(a.session,'TEST_WHATSAPP','GATEWAY','HTTP '+code);return {success:code>=200&&code<300,message:code>=200&&code<300?'Gateway merespons HTTP '+code+'.':'Gateway merespons HTTP '+code+'. Periksa endpoint/token/provider.',httpCode:code};}catch(e){return {success:false,message:'Gagal menghubungi gateway: '+e.message};}}
 function getStage8Status(token){var a=requireSessionResult_(token,['superadmin']);if(!a.ok)return a.response;ensureNotificationDatabase_();var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WA8.SHEET),m=headerMap(sh),d=sh.getDataRange().getValues(),counts={QUEUED:0,PROCESSING:0,SENT:0,FAILED:0,SKIPPED:0};for(var i=1;i<d.length;i++){var s=String(d[i][m['Status']-1]||'');if(counts[s]!==undefined)counts[s]++;}var cfg=getWhatsAppSettings_(false);return {success:true,version:WA8.VERSION,config:{enabled:cfg.enabled,endpointConfigured:!!cfg.endpoint,provider:cfg.provider,autoQueue:cfg.autoQueue,triggerEnabled:cfg.triggerEnabled,maxRetries:cfg.maxRetries},counts:counts};}
 
@@ -2811,7 +2856,7 @@ function ensureWebPushDatabase_() {
 function getWebPushRecipients_(santri,type,session) {
   var sh=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Data_Users');
   if(!sh||sh.getLastRow()<2)return {wali:[],admins:[],waliKelas:[]};
-  var m=headerMap(sh),data=sh.getDataRange().getValues(),sid=String(santri&&santri.id||'').trim(),studentIds=sid.split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean),studentClass=String(santri&&santri.kelas||'').trim().toLowerCase(),actorId=String(session&&session.id||'').trim();
+  var m=headerMap(sh),data=sh.getDataRange().getValues(),sid=String(santri&&santri.id||'').trim(),studentIds=sid.split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean),studentClass=String(santri&&santri.kelas||'').trim().toLowerCase(),studentGender=normalizeStudentGender_(santri&&santri.jenisKelamin),actorId=String(session&&session.id||'').trim();
   var routes={PRESTASI:['admin_prestasi'],PELANGGARAN:['admin_pelanggaran'],PERIZINAN:['admin_perizinan','admin_pelanggaran'],KESEHATAN:['admin_kesehatan'],CATATAN_WALI:[]},route=routes[type]||[],out={wali:[],admins:[],waliKelas:[]};
   function list(value){return String(value||'').split(/[,;\n]+/).map(function(x){return x.trim().toLowerCase();}).filter(Boolean);}
   function add(bucket,id){id=String(id||'').trim();if(id&&id!==actorId)bucket.push({userId:id,externalId:toWebPushExternalId_(id)});}
@@ -2822,9 +2867,13 @@ function getWebPushRecipients_(santri,type,session) {
       var linked=list(m.ID_Santri_Wali?data[i][m.ID_Santri_Wali-1]:'');
       if(studentIds.some(function(x){return linked.indexOf(x)>=0;}))add(out.wali,id);
     }else if(role==='walikelas'){
-      var scope=list(m.Akses_Kelas?data[i][m.Akses_Kelas-1]:''),matches=scope.indexOf('all')>=0||(studentClass&&scope.indexOf(studentClass)>=0);
-      if(matches)add(out.waliKelas,id);
-    }else if(role==='superadmin'||role==='supervisor'||route.indexOf(role)>=0)add(out.admins,id);
+      var classScope=list(m.Akses_Kelas?data[i][m.Akses_Kelas-1]:''),classMatches=classScope.indexOf('all')>=0||(studentClass&&classScope.indexOf(studentClass)>=0);
+      var genderScope=normalizeSantriScope_(m.Lingkup_Santri?data[i][m.Lingkup_Santri-1]:'ALL'),genderMatches=genderScope==='ALL'||(studentGender&&genderScope===studentGender);
+      if(classMatches&&genderMatches)add(out.waliKelas,id);
+    }else if(role==='superadmin'||role==='supervisor'||route.indexOf(role)>=0){
+      var adminScope=normalizeSantriScope_(m.Lingkup_Santri?data[i][m.Lingkup_Santri-1]:'ALL');
+      if(adminScope==='ALL'||(studentGender&&adminScope===studentGender))add(out.admins,id);
+    }
   }
   Object.keys(out).forEach(function(key){var seen={};out[key]=out[key].filter(function(user){if(seen[user.userId])return false;seen[user.userId]=true;return true;});});
   return out;
@@ -2868,7 +2917,8 @@ function queueNewDataPush_(type,santri,eventId,status,session) {
 function getUserNotifications(token,limit){
   var a=requireSessionResult_(token);if(!a.ok)return a.response;var ss=SpreadsheetApp.getActiveSpreadsheet();ensureSheetHeaders(ss,WEB_PUSH.INBOX_SHEET,['ID_Notification','Created_At','User_ID','Santri_ID','Event_ID','Type','Title','Message','URL','Read_At']);
   var sh=ss.getSheetByName(WEB_PUSH.INBOX_SHEET),out=[],max=Math.min(100,Math.max(1,Number(limit||40))),userId=String(a.session.id||''),m=headerMap(sh),data=sh.getDataRange().getValues();
-  for(var i=data.length-1;i>=1&&out.length<max;i--){if(String(data[i][m.User_ID-1]||'')!==userId)continue;out.push({id:String(data[i][m.ID_Notification-1]||''),timestamp:formatDateSafe(data[i][m.Created_At-1]),type:String(data[i][m.Type-1]||''),santriId:String(data[i][m.Santri_ID-1]||''),eventId:String(data[i][m.Event_ID-1]||''),title:String(data[i][m.Title-1]||''),message:String(data[i][m.Message-1]||''),url:String(data[i][m.URL-1]||WEB_PUSH.APP_URL),read:!!data[i][m.Read_At-1],status:data[i][m.Read_At-1]?'Dibaca':'Baru'});}
+  var scopeIndex=buildSantriScopeIndex_();
+  for(var i=data.length-1;i>=1&&out.length<max;i--){if(String(data[i][m.User_ID-1]||'')!==userId)continue;var santriId=String(data[i][m.Santri_ID-1]||'');if(santriId){var student=scopeIndex.byId[santriId];if(!student||!assertSantriAccess_(a.session,student).ok)continue;}out.push({id:String(data[i][m.ID_Notification-1]||''),timestamp:formatDateSafe(data[i][m.Created_At-1]),type:String(data[i][m.Type-1]||''),santriId:santriId,eventId:String(data[i][m.Event_ID-1]||''),title:String(data[i][m.Title-1]||''),message:String(data[i][m.Message-1]||''),url:String(data[i][m.URL-1]||WEB_PUSH.APP_URL),read:!!data[i][m.Read_At-1],status:data[i][m.Read_At-1]?'Dibaca':'Baru'});}
   return {success:true,data:out,unread:out.filter(function(x){return !x.read;}).length};
 }
 
