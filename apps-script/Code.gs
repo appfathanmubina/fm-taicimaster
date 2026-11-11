@@ -2222,7 +2222,7 @@ function getMyPermissions(token) {
   if (!auth.ok) return auth.response;
   var role = normalizeRole_(auth.session.role);
   if (!ROLE_PERMISSIONS[role]) return {success:false,code:'INVALID_ROLE',message:'Role pengguna tidak dikenali.'};
-  return {success:true,version:ROLE_PERMISSION_VERSION,role:role,label:ROLE_PERMISSIONS[role].label,scope:ROLE_PERMISSIONS[role].scope,capabilities:ROLE_PERMISSIONS[role].capabilities.slice()};
+  return {success:true,version:ROLE_PERMISSION_VERSION,role:role,label:ROLE_PERMISSIONS[role].label,scope:ROLE_PERMISSIONS[role].scope,lingkupSantri:normalizeSantriScope_(auth.session.lingkupSantri),capabilities:ROLE_PERMISSIONS[role].capabilities.slice()};
 }
 
 function validateUserRole_(role) {
